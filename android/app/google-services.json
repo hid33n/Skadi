@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "180964078388",
+    "project_id": "authreact-f8fe7",
+    "storage_bucket": "authreact-f8fe7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:180964078388:android:4f8c3f78c33737cc512b61",
+        "android_client_info": {
+          "package_name": "com.hid33nstudios.stock"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAU1acTa-yZxOGm3h0-WyUV5Kc1oQ50hhE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
