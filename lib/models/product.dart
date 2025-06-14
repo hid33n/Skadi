@@ -6,9 +6,10 @@ class Product {
   final String description;
   final double price;
   final int stock;
-  final String categoryId;
   final int minStock;
-  final String category;
+  final int maxStock;
+  final String categoryId;
+  final String? imageUrl;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -18,9 +19,10 @@ class Product {
     required this.description,
     required this.price,
     required this.stock,
-    required this.categoryId,
     required this.minStock,
-    required this.category,
+    required this.maxStock,
+    required this.categoryId,
+    this.imageUrl,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -31,11 +33,12 @@ class Product {
       'description': description,
       'price': price,
       'stock': stock,
-      'categoryId': categoryId,
       'minStock': minStock,
-      'category': category,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
+      'maxStock': maxStock,
+      'categoryId': categoryId,
+      'imageUrl': imageUrl,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
@@ -46,11 +49,12 @@ class Product {
       description: map['description'] as String,
       price: (map['price'] as num).toDouble(),
       stock: map['stock'] as int,
-      categoryId: map['categoryId'] as String,
       minStock: map['minStock'] as int,
-      category: map['category'] as String,
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
-      updatedAt: (map['updatedAt'] as Timestamp).toDate(),
+      maxStock: map['maxStock'] as int,
+      categoryId: map['categoryId'] as String,
+      imageUrl: map['imageUrl'] as String?,
+      createdAt: DateTime.parse(map['createdAt'] as String),
+      updatedAt: DateTime.parse(map['updatedAt'] as String),
     );
   }
 
@@ -60,9 +64,10 @@ class Product {
     String? description,
     double? price,
     int? stock,
-    String? categoryId,
     int? minStock,
-    String? category,
+    int? maxStock,
+    String? categoryId,
+    String? imageUrl,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -72,9 +77,10 @@ class Product {
       description: description ?? this.description,
       price: price ?? this.price,
       stock: stock ?? this.stock,
-      categoryId: categoryId ?? this.categoryId,
       minStock: minStock ?? this.minStock,
-      category: category ?? this.category,
+      maxStock: maxStock ?? this.maxStock,
+      categoryId: categoryId ?? this.categoryId,
+      imageUrl: imageUrl ?? this.imageUrl,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

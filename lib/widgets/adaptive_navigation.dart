@@ -5,6 +5,7 @@ import '../screens/category_management_screen.dart';
 import '../screens/movement_history_screen.dart';
 import '../screens/sales_screen.dart';
 import '../services/auth_service.dart';
+import 'theme_switch.dart';
 
 class AdaptiveNavigation extends StatelessWidget {
   final int selectedIndex;
@@ -97,24 +98,25 @@ class AdaptiveNavigation extends StatelessWidget {
             ),
           ),
         ),
+        const ThemeSwitch(),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 16.0),
           child: SafeArea(
             child: isExtended
-                ? const Text(
+                ? Text(
                     'Skadi',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
-                      color: Colors.black,
+                      color: Theme.of(context).colorScheme.onBackground,
                     ),
                   )
-                : const Text(
+                : Text(
                     'S',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
-                      color: Colors.black,
+                      color: Theme.of(context).colorScheme.onBackground,
                     ),
                   ),
           ),

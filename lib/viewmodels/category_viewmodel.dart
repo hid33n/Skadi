@@ -6,17 +6,19 @@ class CategoryViewModel extends ChangeNotifier {
   final FirestoreService _firestoreService;
   List<Category> _categories = [];
   bool _isLoading = false;
-  String _error = '';
+  String? _error;
 
-  CategoryViewModel(this._firestoreService);
+  CategoryViewModel(this._firestoreService) {
+    loadCategories();
+  }
 
   List<Category> get categories => _categories;
   bool get isLoading => _isLoading;
-  String get error => _error;
+  String? get error => _error;
 
   Future<void> loadCategories() async {
     _isLoading = true;
-    _error = '';
+    _error = null;
     notifyListeners();
 
     try {
@@ -31,7 +33,7 @@ class CategoryViewModel extends ChangeNotifier {
 
   Future<void> addCategory(Category category) async {
     _isLoading = true;
-    _error = '';
+    _error = null;
     notifyListeners();
 
     try {
@@ -39,13 +41,15 @@ class CategoryViewModel extends ChangeNotifier {
       await loadCategories();
     } catch (e) {
       _error = e.toString();
+    } finally {
+      _isLoading = false;
       notifyListeners();
     }
   }
 
   Future<void> updateCategory(Category category) async {
     _isLoading = true;
-    _error = '';
+    _error = null;
     notifyListeners();
 
     try {
@@ -53,13 +57,15 @@ class CategoryViewModel extends ChangeNotifier {
       await loadCategories();
     } catch (e) {
       _error = e.toString();
+    } finally {
+      _isLoading = false;
       notifyListeners();
     }
   }
 
   Future<void> deleteCategory(String id) async {
     _isLoading = true;
-    _error = '';
+    _error = null;
     notifyListeners();
 
     try {
@@ -67,15 +73,25 @@ class CategoryViewModel extends ChangeNotifier {
       await loadCategories();
     } catch (e) {
       _error = e.toString();
+    } finally {
+      _isLoading = false;
       notifyListeners();
     }
   }
 
   Category? getCategoryById(String id) {
     try {
-      return _categories.firstWhere((c) => c.id == id);
+      return _categories.firstWhere((category) => category.id == id);
     } catch (e) {
       return null;
     }
+  }
+
+  Map<String, int> getProductCountByCategory() {
+    final Map<String, int> categoryCount = {};
+    for (var category in _categories) {
+      categoryCount[category.id] = 0; // Inicializar contador
+    }
+    return categoryCount;
   }
 } 

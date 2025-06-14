@@ -13,16 +13,25 @@ class FirestoreService {
 
   String get _userId => _authService.currentUser?.uid ?? '';
 
+  // Referencias a las subcolecciones
+  CollectionReference get _userProductsRef => 
+      _firestore.collection('users').doc(_userId).collection('products');
+  
+  CollectionReference get _userCategoriesRef => 
+      _firestore.collection('users').doc(_userId).collection('categories');
+  
+  CollectionReference get _userSalesRef => 
+      _firestore.collection('users').doc(_userId).collection('sales');
+  
+  CollectionReference get _userMovementsRef => 
+      _firestore.collection('users').doc(_userId).collection('movements');
+
   // Métodos para Productos
   Future<List<Product>> getProducts() async {
     try {
-      final snapshot = await _firestore
-          .collection('products')
-          .where('userId', isEqualTo: _userId)
-          .get();
-
+      final snapshot = await _userProductsRef.get();
       return snapshot.docs
-          .map((doc) => Product.fromMap(doc.data(), doc.id))
+          .map((doc) => Product.fromMap(doc.data() as Map<String, dynamic>, doc.id))
           .toList();
     } catch (e) {
       throw Exception('Error al obtener productos: $e');
@@ -31,10 +40,7 @@ class FirestoreService {
 
   Future<void> addProduct(Product product) async {
     try {
-      await _firestore.collection('products').add({
-        ...product.toMap(),
-        'userId': _userId,
-      });
+      await _userProductsRef.add(product.toMap());
     } catch (e) {
       throw Exception('Error al agregar producto: $e');
     }
@@ -42,7 +48,7 @@ class FirestoreService {
 
   Future<void> updateProduct(String id, Product product) async {
     try {
-      await _firestore.collection('products').doc(id).update(product.toMap());
+      await _userProductsRef.doc(id).update(product.toMap());
     } catch (e) {
       throw Exception('Error al actualizar producto: $e');
     }
@@ -50,7 +56,7 @@ class FirestoreService {
 
   Future<void> deleteProduct(String id) async {
     try {
-      await _firestore.collection('products').doc(id).delete();
+      await _userProductsRef.doc(id).delete();
     } catch (e) {
       throw Exception('Error al eliminar producto: $e');
     }
@@ -58,13 +64,9 @@ class FirestoreService {
 
   Future<List<Product>> getLowStockProducts() async {
     try {
-      final snapshot = await _firestore
-          .collection('products')
-          .where('userId', isEqualTo: _userId)
-          .get();
-
+      final snapshot = await _userProductsRef.get();
       return snapshot.docs
-          .map((doc) => Product.fromMap(doc.data(), doc.id))
+          .map((doc) => Product.fromMap(doc.data() as Map<String, dynamic>, doc.id))
           .where((product) => product.stock <= product.minStock)
           .toList();
     } catch (e) {
@@ -75,13 +77,9 @@ class FirestoreService {
   // Métodos para Categorías
   Future<List<Category>> getCategories() async {
     try {
-      final snapshot = await _firestore
-          .collection('categories')
-          .where('userId', isEqualTo: _userId)
-          .get();
-
+      final snapshot = await _userCategoriesRef.get();
       return snapshot.docs
-          .map((doc) => Category.fromMap(doc.data(), doc.id))
+          .map((doc) => Category.fromMap(doc.data() as Map<String, dynamic>, doc.id))
           .toList();
     } catch (e) {
       throw Exception('Error al obtener categorías: $e');
@@ -90,10 +88,7 @@ class FirestoreService {
 
   Future<void> addCategory(Category category) async {
     try {
-      await _firestore.collection('categories').add({
-        ...category.toMap(),
-        'userId': _userId,
-      });
+      await _userCategoriesRef.add(category.toMap());
     } catch (e) {
       throw Exception('Error al agregar categoría: $e');
     }
@@ -101,7 +96,7 @@ class FirestoreService {
 
   Future<void> updateCategory(String id, Category category) async {
     try {
-      await _firestore.collection('categories').doc(id).update(category.toMap());
+      await _userCategoriesRef.doc(id).update(category.toMap());
     } catch (e) {
       throw Exception('Error al actualizar categoría: $e');
     }
@@ -109,7 +104,7 @@ class FirestoreService {
 
   Future<void> deleteCategory(String id) async {
     try {
-      await _firestore.collection('categories').doc(id).delete();
+      await _userCategoriesRef.doc(id).delete();
     } catch (e) {
       throw Exception('Error al eliminar categoría: $e');
     }
@@ -117,9 +112,9 @@ class FirestoreService {
 
   Future<Category?> getCategoryById(String id) async {
     try {
-      final doc = await _firestore.collection('categories').doc(id).get();
+      final doc = await _userCategoriesRef.doc(id).get();
       if (doc.exists) {
-        return Category.fromMap(doc.data()!, doc.id);
+        return Category.fromMap(doc.data() as Map<String, dynamic>, doc.id);
       }
       return null;
     } catch (e) {
@@ -130,18 +125,13 @@ class FirestoreService {
   // Métodos para Ventas
   Future<List<Sale>> getSales() async {
     try {
-      final snapshot = await _firestore
-          .collection('sales')
-          .where('userId', isEqualTo: _userId)
+      final snapshot = await _userSalesRef
+          .orderBy('date', descending: true)
           .get();
 
-      final sales = snapshot.docs
-          .map((doc) => Sale.fromMap(doc.data(), doc.id))
+      return snapshot.docs
+          .map((doc) => Sale.fromMap(doc.data() as Map<String, dynamic>, doc.id))
           .toList();
-      
-      // Ordenar en memoria
-      sales.sort((a, b) => b.date.compareTo(a.date));
-      return sales;
     } catch (e) {
       throw Exception('Error al obtener ventas: $e');
     }
@@ -149,10 +139,7 @@ class FirestoreService {
 
   Future<void> addSale(Sale sale) async {
     try {
-      await _firestore.collection('sales').add({
-        ...sale.toMap(),
-        'userId': _userId,
-      });
+      await _userSalesRef.add(sale.toMap());
     } catch (e) {
       throw Exception('Error al agregar venta: $e');
     }
@@ -160,7 +147,7 @@ class FirestoreService {
 
   Future<void> deleteSale(String id) async {
     try {
-      await _firestore.collection('sales').doc(id).delete();
+      await _userSalesRef.doc(id).delete();
     } catch (e) {
       throw Exception('Error al eliminar venta: $e');
     }
@@ -169,18 +156,13 @@ class FirestoreService {
   // Métodos para Movimientos
   Future<List<Movement>> getMovements() async {
     try {
-      final snapshot = await _firestore
-          .collection('movements')
-          .where('userId', isEqualTo: _userId)
+      final snapshot = await _userMovementsRef
+          .orderBy('date', descending: true)
           .get();
 
-      final movements = snapshot.docs
-          .map((doc) => Movement.fromMap(doc.data(), doc.id))
+      return snapshot.docs
+          .map((doc) => Movement.fromMap(doc.data() as Map<String, dynamic>, doc.id))
           .toList();
-      
-      // Ordenar en memoria
-      movements.sort((a, b) => b.date.compareTo(a.date));
-      return movements;
     } catch (e) {
       throw Exception('Error al obtener movimientos: $e');
     }
@@ -188,10 +170,7 @@ class FirestoreService {
 
   Future<void> addMovement(Movement movement) async {
     try {
-      await _firestore.collection('movements').add({
-        ...movement.toMap(),
-        'userId': _userId,
-      });
+      await _userMovementsRef.add(movement.toMap());
     } catch (e) {
       throw Exception('Error al agregar movimiento: $e');
     }
@@ -199,115 +178,70 @@ class FirestoreService {
 
   Future<void> deleteMovement(String id) async {
     try {
-      await _firestore.collection('movements').doc(id).delete();
+      await _userMovementsRef.doc(id).delete();
     } catch (e) {
       throw Exception('Error al eliminar movimiento: $e');
     }
   }
 
-  Future<List<Movement>> getMovementsByProduct(String productId) async {
-    try {
-      final querySnapshot = await _firestore
-          .collection('movements')
-          .where('productId', isEqualTo: productId)
-          .orderBy('date', descending: true)
-          .get();
-
-      return querySnapshot.docs
-          .map((doc) => Movement.fromMap(doc.data(), doc.id))
-          .toList();
-    } catch (e) {
-      throw Exception('Error al obtener movimientos por producto: $e');
-    }
-  }
-
-  Future<List<Movement>> getMovementsByDateRange(DateTime startDate, DateTime endDate) async {
-    try {
-      final querySnapshot = await _firestore
-          .collection('movements')
-          .where('date', isGreaterThanOrEqualTo: startDate)
-          .where('date', isLessThanOrEqualTo: endDate)
-          .orderBy('date', descending: true)
-          .get();
-
-      return querySnapshot.docs
-          .map((doc) => Movement.fromMap(doc.data(), doc.id))
-          .toList();
-    } catch (e) {
-      throw Exception('Error al obtener movimientos por rango de fechas: $e');
-    }
-  }
-
-  Future<List<Movement>> getMovementsByType(MovementType type) async {
-    try {
-      final querySnapshot = await _firestore
-          .collection('movements')
-          .where('type', isEqualTo: type.toString())
-          .orderBy('date', descending: true)
-          .get();
-
-      return querySnapshot.docs
-          .map((doc) => Movement.fromMap(doc.data(), doc.id))
-          .toList();
-    } catch (e) {
-      throw Exception('Error al obtener movimientos por tipo: $e');
-    }
-  }
-
-  // Método para obtener datos del dashboard
+  // Métodos para el Dashboard
   Future<Map<String, dynamic>> getDashboardData() async {
     try {
       final now = DateTime.now();
-      final sevenDaysAgo = now.subtract(const Duration(days: 7));
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final startOfWeek = startOfDay.subtract(Duration(days: startOfDay.weekday - 1));
+      final startOfMonth = DateTime(now.year, now.month, 1);
 
-      // Obtener ventas
-      final salesSnapshot = await _firestore
-          .collection('sales')
-          .where('userId', isEqualTo: _userId)
+      // Obtener ventas del día
+      final todaySales = await _userSalesRef
+          .where('date', isGreaterThanOrEqualTo: startOfDay)
           .get();
 
-      final allSales = salesSnapshot.docs
-          .map((doc) => Sale.fromMap(doc.data(), doc.id))
-          .toList();
+      // Obtener ventas de la semana
+      final weekSales = await _userSalesRef
+          .where('date', isGreaterThanOrEqualTo: startOfWeek)
+          .get();
 
-      // Filtrar y ordenar ventas en memoria
-      final sales = allSales
-          .where((sale) => sale.date.isAfter(sevenDaysAgo))
-          .toList()
-        ..sort((a, b) => b.date.compareTo(a.date));
+      // Obtener ventas del mes
+      final monthSales = await _userSalesRef
+          .where('date', isGreaterThanOrEqualTo: startOfMonth)
+          .get();
 
       // Obtener productos con stock bajo
-      final productsSnapshot = await _firestore
-          .collection('products')
-          .where('userId', isEqualTo: _userId)
-          .get();
+      final lowStockProducts = await getLowStockProducts();
 
-      final products = productsSnapshot.docs
-          .map((doc) => Product.fromMap(doc.data(), doc.id))
-          .where((product) => product.stock <= product.minStock)
-          .toList();
+      // Obtener todas las categorías
+      final categories = await getCategories();
 
-      // Obtener movimientos recientes
-      final movementsSnapshot = await _firestore
-          .collection('movements')
-          .where('userId', isEqualTo: _userId)
-          .get();
+      // Obtener todos los productos
+      final products = await getProducts();
 
-      final allMovements = movementsSnapshot.docs
-          .map((doc) => Movement.fromMap(doc.data(), doc.id))
-          .toList();
-
-      // Ordenar y limitar movimientos en memoria
-      allMovements.sort((a, b) => b.date.compareTo(a.date));
-      final movements = allMovements.take(5).toList();
+      // Calcular totales
+      double calculateTotal(List<QueryDocumentSnapshot> sales) {
+        return sales.fold(0, (sum, doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return sum + (data['amount'] as num? ?? 0);
+        });
+      }
 
       return {
-        'sales': sales,
-        'lowStockProducts': products,
-        'recentMovements': movements,
+        'todaySales': calculateTotal(todaySales.docs),
+        'weekSales': calculateTotal(weekSales.docs),
+        'monthSales': calculateTotal(monthSales.docs),
+        'lowStockProducts': lowStockProducts ?? [],
+        'categories': categories ?? [],
+        'products': products ?? [],
       };
     } catch (e) {
-      throw Exception('Error al obtener datos del dashboard: $e');
+      // En caso de error, devolver datos vacíos en lugar de null
+      return {
+        'todaySales': 0.0,
+        'weekSales': 0.0,
+        'monthSales': 0.0,
+        'lowStockProducts': [],
+        'categories': [],
+        'products': [],
+      };
     }
   }
 } 

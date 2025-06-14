@@ -6,17 +6,19 @@ class ProductViewModel extends ChangeNotifier {
   final FirestoreService _firestoreService;
   List<Product> _products = [];
   bool _isLoading = false;
-  String _error = '';
+  String? _error;
 
-  ProductViewModel(this._firestoreService);
+  ProductViewModel(this._firestoreService) {
+    loadProducts();
+  }
 
   List<Product> get products => _products;
   bool get isLoading => _isLoading;
-  String get error => _error;
+  String? get error => _error;
 
   Future<void> loadProducts() async {
     _isLoading = true;
-    _error = '';
+    _error = null;
     notifyListeners();
 
     try {
@@ -31,7 +33,7 @@ class ProductViewModel extends ChangeNotifier {
 
   Future<void> addProduct(Product product) async {
     _isLoading = true;
-    _error = '';
+    _error = null;
     notifyListeners();
 
     try {
@@ -39,13 +41,15 @@ class ProductViewModel extends ChangeNotifier {
       await loadProducts();
     } catch (e) {
       _error = e.toString();
+    } finally {
+      _isLoading = false;
       notifyListeners();
     }
   }
 
   Future<void> updateProduct(Product product) async {
     _isLoading = true;
-    _error = '';
+    _error = null;
     notifyListeners();
 
     try {
@@ -53,13 +57,15 @@ class ProductViewModel extends ChangeNotifier {
       await loadProducts();
     } catch (e) {
       _error = e.toString();
+    } finally {
+      _isLoading = false;
       notifyListeners();
     }
   }
 
   Future<void> deleteProduct(String id) async {
     _isLoading = true;
-    _error = '';
+    _error = null;
     notifyListeners();
 
     try {
@@ -67,12 +73,26 @@ class ProductViewModel extends ChangeNotifier {
       await loadProducts();
     } catch (e) {
       _error = e.toString();
+    } finally {
+      _isLoading = false;
       notifyListeners();
     }
   }
 
   List<Product> getLowStockProducts() {
-    return _products.where((p) => p.stock <= p.minStock).toList();
+    return _products.where((product) => product.stock <= product.minStock).toList();
+  }
+
+  Map<String, int> getProductsByCategory() {
+    final Map<String, int> categoryCount = {};
+    for (var product in _products) {
+      categoryCount[product.categoryId] = (categoryCount[product.categoryId] ?? 0) + 1;
+    }
+    return categoryCount;
+  }
+
+  double getTotalStockValue() {
+    return _products.fold(0, (sum, product) => sum + (product.price * product.stock));
   }
 
   List<Product> searchProducts(String query) {

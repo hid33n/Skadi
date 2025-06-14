@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stock/models/product.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() {
   group('Product Model Tests', () {
@@ -12,9 +13,9 @@ void main() {
         'stock': 5,
         'categoryId': 'category-id',
         'minStock': 2,
-        'category': 'Test Category',
-        'createdAt': DateTime.now(),
-        'updatedAt': DateTime.now(),
+        'maxStock': 10,
+        'createdAt': Timestamp.fromDate(DateTime.now()),
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
       };
 
       // Act
@@ -28,7 +29,7 @@ void main() {
       expect(product.stock, 5);
       expect(product.categoryId, 'category-id');
       expect(product.minStock, 2);
-      expect(product.category, 'Test Category');
+      expect(product.maxStock, 10);
     });
 
     test('Product.toMap should convert Product to map', () {
@@ -41,7 +42,7 @@ void main() {
         stock: 5,
         categoryId: 'category-id',
         minStock: 2,
-        category: 'Test Category',
+        maxStock: 10,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -56,7 +57,7 @@ void main() {
       expect(map['stock'], 5);
       expect(map['categoryId'], 'category-id');
       expect(map['minStock'], 2);
-      expect(map['category'], 'Test Category');
+      expect(map['maxStock'], 10);
     });
 
     test('Product.copyWith should create new Product with updated fields', () {
@@ -69,7 +70,7 @@ void main() {
         stock: 5,
         categoryId: 'category-id',
         minStock: 2,
-        category: 'Test Category',
+        maxStock: 10,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -88,7 +89,7 @@ void main() {
       expect(updatedProduct.stock, 5);
       expect(updatedProduct.categoryId, 'category-id');
       expect(updatedProduct.minStock, 2);
-      expect(updatedProduct.category, 'Test Category');
+      expect(updatedProduct.maxStock, 10);
     });
   });
 } 

@@ -4,6 +4,7 @@ import '../models/sale.dart';
 import '../viewmodels/sale_viewmodel.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../widgets/custom_snackbar.dart';
+import '../services/auth_service.dart';
 
 class NewSaleScreen extends StatefulWidget {
   const NewSaleScreen({super.key});
@@ -60,21 +61,34 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       return;
     }
 
-    final saleViewModel = context.read<SaleViewModel>();
-    final sale = Sale(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      userId: 'currentUserId', // Reemplazar con el ID del usuario actual
-      productId: _selectedProductId!,
-      productName: _selectedProductName!,
-      amount: _selectedProductPrice! * _quantity,
-      quantity: _quantity,
-      date: DateTime.now(),
-      notes: null,
-    );
-
     try {
+      final userId = context.read<AuthService>().currentUser?.uid;
+      if (userId == null) {
+        CustomSnackBar.showError(
+          context: context,
+          message: 'No hay usuario autenticado',
+        );
+        return;
+      }
+
+      final saleViewModel = context.read<SaleViewModel>();
+      final sale = Sale(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        userId: userId,
+        productId: _selectedProductId!,
+        productName: _selectedProductName!,
+        amount: _selectedProductPrice! * _quantity,
+        quantity: _quantity,
+        date: DateTime.now(),
+        notes: null,
+      );
+
       await saleViewModel.addSale(sale);
       if (mounted) {
+        CustomSnackBar.showSuccess(
+          context: context,
+          message: 'Venta registrada correctamente',
+        );
         Navigator.pop(context);
       }
     } catch (e) {
@@ -134,7 +148,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  if (productVM.error.isNotEmpty) {
+                  if (productVM.error != null && productVM.error!.isNotEmpty) {
                     return Center(child: Text('Error: ${productVM.error}'));
                   }
 

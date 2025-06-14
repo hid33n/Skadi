@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../services/firestore_service.dart';
 import '../models/product.dart';
 import '../models/category.dart';
+import '../services/auth_service.dart';
 
 class NewProductScreen extends StatefulWidget {
   const NewProductScreen({super.key});
@@ -18,6 +19,7 @@ class _NewProductScreenState extends State<NewProductScreen> {
   final _priceController = TextEditingController();
   final _stockController = TextEditingController();
   final _minStockController = TextEditingController();
+  final _maxStockController = TextEditingController();
   String? _selectedCategoryId;
   List<Category> _categories = [];
 
@@ -34,6 +36,7 @@ class _NewProductScreenState extends State<NewProductScreen> {
     _priceController.dispose();
     _stockController.dispose();
     _minStockController.dispose();
+    _maxStockController.dispose();
     super.dispose();
   }
 
@@ -54,9 +57,13 @@ class _NewProductScreenState extends State<NewProductScreen> {
       }
 
       try {
-        final selectedCategory = _categories.firstWhere(
-          (category) => category.id == _selectedCategoryId,
-        );
+        final userId = context.read<AuthService>().currentUser?.uid;
+        if (userId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No hay usuario autenticado')),
+          );
+          return;
+        }
 
         final product = Product(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -65,8 +72,8 @@ class _NewProductScreenState extends State<NewProductScreen> {
           price: double.parse(_priceController.text),
           stock: int.parse(_stockController.text),
           minStock: int.parse(_minStockController.text),
+          maxStock: int.parse(_maxStockController.text),
           categoryId: _selectedCategoryId!,
-          category: selectedCategory.name,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
@@ -174,6 +181,24 @@ class _NewProductScreenState extends State<NewProductScreen> {
                   }
                   if (int.tryParse(value) == null) {
                     return 'Por favor ingrese un stock mínimo válido';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _maxStockController,
+                decoration: const InputDecoration(
+                  labelText: 'Stock Máximo',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Por favor ingrese el stock máximo';
+                  }
+                  if (int.tryParse(value) == null) {
+                    return 'Por favor ingrese un stock máximo válido';
                   }
                   return null;
                 },

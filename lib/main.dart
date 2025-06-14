@@ -8,15 +8,19 @@ import 'viewmodels/product_viewmodel.dart';
 import 'viewmodels/category_viewmodel.dart';
 import 'viewmodels/movement_viewmodel.dart';
 import 'viewmodels/sale_viewmodel.dart';
+import 'viewmodels/theme_viewmodel.dart';
+import 'viewmodels/dashboard_viewmodel.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/product_list_screen.dart';
 import 'screens/category_management_screen.dart';
 import 'screens/movement_history_screen.dart';
 import 'screens/sales_screen.dart';
 import 'widgets/adaptive_navigation.dart';
+import 'widgets/page_transition.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,18 +57,42 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider<SaleViewModel>(
           create: (context) => SaleViewModel(context.read<FirestoreService>()),
         ),
-      ],
-      child: MaterialApp(
-        title: 'Skadi',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-          useMaterial3: true,
+        ChangeNotifierProvider<DashboardViewModel>(
+          create: (context) => DashboardViewModel(context.read<FirestoreService>()),
         ),
-        initialRoute: '/login',
-        routes: {
-          '/login': (context) => const LoginScreen(),
-          '/register': (context) => const RegisterScreen(),
-          '/home': (context) => HomeScreen(),
+        ChangeNotifierProvider<ThemeViewModel>(
+          create: (_) => ThemeViewModel(),
+        ),
+      ],
+      child: Consumer<ThemeViewModel>(
+        builder: (context, themeViewModel, _) {
+          return MaterialApp(
+            title: 'Skadi',
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeViewModel.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            initialRoute: '/login',
+            onGenerateRoute: (settings) {
+              Widget page;
+              switch (settings.name) {
+                case '/login':
+                  page = const LoginScreen();
+                  break;
+                case '/register':
+                  page = const RegisterScreen();
+                  break;
+                case '/home':
+                  page = HomeScreen();
+                  break;
+                default:
+                  page = const LoginScreen();
+              }
+              return PageTransition(
+                page: page,
+                settings: settings,
+              );
+            },
+          );
         },
       ),
     );

@@ -79,7 +79,7 @@ void main() {
           stock: 5,
           categoryId: 'cat1',
           minStock: 3,
-          category: 'Category 1',
+          maxStock: 10,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         ),
@@ -91,7 +91,7 @@ void main() {
           stock: 10,
           categoryId: 'cat2',
           minStock: 5,
-          category: 'Category 2',
+          maxStock: 20,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         ),
@@ -131,7 +131,7 @@ void main() {
         stock: 8,
         categoryId: 'cat1',
         minStock: 4,
-        category: 'Category 1',
+        maxStock: 15,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -156,7 +156,7 @@ void main() {
         stock: 12,
         categoryId: 'cat1',
         minStock: 6,
-        category: 'Category 1',
+        maxStock: 25,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -185,7 +185,7 @@ void main() {
         stock: 12,
         categoryId: 'cat1',
         minStock: 6,
-        category: 'Category 1',
+        maxStock: 25,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -207,7 +207,7 @@ void main() {
         stock: 5,
         categoryId: 'cat1',
         minStock: 3,
-        category: 'Category 1',
+        maxStock: 10,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -244,7 +244,7 @@ void main() {
           stock: 2,
           categoryId: 'cat1',
           minStock: 5,
-          category: 'Category 1',
+          maxStock: 10,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         ),
@@ -256,7 +256,7 @@ void main() {
           stock: 10,
           categoryId: 'cat2',
           minStock: 5,
-          category: 'Category 2',
+          maxStock: 20,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         ),
@@ -288,7 +288,7 @@ void main() {
           stock: 10,
           categoryId: 'cat1',
           minStock: 5,
-          category: 'Category 1',
+          maxStock: 10,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         ),
@@ -300,7 +300,7 @@ void main() {
           stock: 15,
           categoryId: 'cat2',
           minStock: 5,
-          category: 'Category 2',
+          maxStock: 20,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         ),
@@ -352,12 +352,12 @@ void main() {
       }
 
       // Act
-      final result = await firestoreService.getDashboardData();
+      final result = await firestoreService.getSales();
 
       // Assert
-      expect(result['totalSales'], 50.0);
-      expect(result['totalProducts'], 2);
-      expect(result['recentSales'].length, 2);
+      expect(result.length, 2);
+      expect(result[0].productName, 'Product 1');
+      expect(result[1].productName, 'Product 2');
     });
   });
 } 

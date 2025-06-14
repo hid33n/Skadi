@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/sale.dart';
 import '../models/sale_item.dart';
 import '../services/firestore_service.dart';
+import 'package:flutter/material.dart';
 
 class SaleViewModel extends ChangeNotifier {
   final FirestoreService _firestoreService;
@@ -9,11 +10,15 @@ class SaleViewModel extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
-  SaleViewModel(this._firestoreService);
+  SaleViewModel(this._firestoreService) {
+    loadSales();
+  }
 
   List<Sale> get sales => _sales;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  double get totalSales => _sales.fold(0, (sum, sale) => sum + sale.amount);
+  int get salesCount => _sales.length;
 
   Future<void> loadSales() async {
     _isLoading = true;
@@ -22,7 +27,6 @@ class SaleViewModel extends ChangeNotifier {
 
     try {
       _sales = await _firestoreService.getSales();
-      _error = null;
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -39,7 +43,6 @@ class SaleViewModel extends ChangeNotifier {
     try {
       await _firestoreService.addSale(sale);
       await loadSales();
-      _error = null;
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -56,7 +59,6 @@ class SaleViewModel extends ChangeNotifier {
     try {
       await _firestoreService.deleteSale(id);
       await loadSales();
-      _error = null;
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -101,4 +103,43 @@ class SaleViewModel extends ChangeNotifier {
 
     return Map.fromEntries(sortedProducts.take(5));
   }
+
+  List<SalesDataPoint> getSalesByPeriod() {
+    final now = DateTime.now();
+    final lastWeek = now.subtract(const Duration(days: 7));
+    
+    // Agrupar ventas por día
+    final Map<String, double> dailySales = {};
+    for (var i = 0; i < 7; i++) {
+      final date = lastWeek.add(Duration(days: i));
+      final dateStr = '${date.day}/${date.month}';
+      dailySales[dateStr] = 0;
+    }
+
+    // Sumar ventas por día
+    for (var sale in _sales) {
+      if (sale.date.isAfter(lastWeek)) {
+        final dateStr = '${sale.date.day}/${sale.date.month}';
+        dailySales[dateStr] = (dailySales[dateStr] ?? 0) + sale.amount;
+      }
+    }
+
+    // Convertir a lista de puntos de datos
+    return dailySales.entries.map((entry) {
+      return SalesDataPoint(
+        date: entry.key,
+        amount: entry.value,
+      );
+    }).toList();
+  }
+}
+
+class SalesDataPoint {
+  final String date;
+  final double amount;
+
+  SalesDataPoint({
+    required this.date,
+    required this.amount,
+  });
 } 

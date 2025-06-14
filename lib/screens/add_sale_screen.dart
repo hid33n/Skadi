@@ -5,6 +5,7 @@ import '../models/sale.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/sale_viewmodel.dart';
 import '../widgets/custom_snackbar.dart';
+import '../services/auth_service.dart';
 
 class AddSaleScreen extends StatefulWidget {
   const AddSaleScreen({super.key});
@@ -66,9 +67,18 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
     }
 
     try {
+      final userId = context.read<AuthService>().currentUser?.uid;
+      if (userId == null) {
+        CustomSnackBar.showError(
+          context: context,
+          message: 'No hay usuario autenticado',
+        );
+        return;
+      }
+
       final sale = Sale(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        userId: 'currentUserId', // Reemplazar con el ID del usuario actual
+        userId: userId,
         productId: _selectedProductId!,
         productName: _selectedProductName!,
         amount: _selectedProductPrice! * _quantity,
@@ -116,7 +126,7 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (productVM.error.isNotEmpty) {
+          if (productVM.error != null && productVM.error!.isNotEmpty) {
             return Center(child: Text('Error: ${productVM.error}'));
           }
 

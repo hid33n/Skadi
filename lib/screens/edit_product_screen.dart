@@ -73,7 +73,6 @@ class _EditProductScreenState extends State<EditProductScreen> {
           stock: int.parse(_stockController.text),
           categoryId: _selectedCategory!.id,
           minStock: int.parse(_minStockController.text),
-          category: _selectedCategory!.name,
           updatedAt: now,
         );
 

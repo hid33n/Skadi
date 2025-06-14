@@ -8,9 +8,17 @@ class MockFirebaseAuth extends Mock implements FirebaseAuth {}
 class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
 class MockUserCredential extends Mock implements UserCredential {}
 class MockUser extends Mock implements User {}
-class MockCollectionReference extends Mock implements CollectionReference<Map<String, dynamic>> {}
+class MockCollectionReference extends Mock implements CollectionReference<Map<String, dynamic>> {
+  @override
+  DocumentReference<Map<String, dynamic>> doc([String? path]) {
+    return MockDocumentReference();
+  }
+}
 class MockQuerySnapshot extends Mock implements QuerySnapshot<Map<String, dynamic>> {}
-class MockDocumentReference extends Mock implements DocumentReference<Map<String, dynamic>> {}
+class MockDocumentReference extends Mock implements DocumentReference<Map<String, dynamic>> {
+  @override
+  Future<void> set(Map<String, dynamic> data, [SetOptions? options]) async {}
+}
 class MockQueryDocumentSnapshot extends Mock implements QueryDocumentSnapshot<Map<String, dynamic>> {}
 
 void main() {
@@ -21,7 +29,7 @@ void main() {
   setUp(() {
     mockAuth = MockFirebaseAuth();
     mockFirestore = MockFirebaseFirestore();
-    authService = AuthService();
+    authService = AuthService(auth: mockAuth, firestore: mockFirestore);
   });
 
   group('AuthService Tests', () {
@@ -103,7 +111,6 @@ void main() {
       // Arrange
       final mockUserCredential = MockUserCredential();
       final mockUser = MockUser();
-      final mockDocumentReference = MockDocumentReference();
       final mockQuerySnapshot = MockQuerySnapshot();
       final mockCollectionReference = MockCollectionReference();
 
@@ -119,8 +126,6 @@ void main() {
       when(mockCollectionReference.where('username', isEqualTo: 'testuser')).thenReturn(mockCollectionReference);
       when(mockCollectionReference.get()).thenAnswer((_) async => mockQuerySnapshot);
       when(mockQuerySnapshot.docs).thenReturn([]);
-      when(mockCollectionReference.doc('test-uid')).thenReturn(mockDocumentReference);
-      when(mockDocumentReference.set(any)).thenAnswer((_) async => Future<void>.value());
 
       // Act
       final result = await authService.registerWithEmailAndPassword(

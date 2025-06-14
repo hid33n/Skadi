@@ -2,8 +2,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth;
+  final FirebaseFirestore _firestore;
+
+  AuthService({
+    FirebaseAuth? auth,
+    FirebaseFirestore? firestore,
+  })  : _auth = auth ?? FirebaseAuth.instance,
+        _firestore = firestore ?? FirebaseFirestore.instance;
 
   // Obtener el usuario actual
   User? get currentUser => _auth.currentUser;
@@ -37,6 +43,28 @@ class AuthService {
         'createdAt': FieldValue.serverTimestamp(),
         'role': 'user',
       });
+
+      // Crear estructura inicial de datos del usuario
+      final userDoc = _firestore.collection('users').doc(userCredential.user!.uid);
+      
+      // Crear subcolecciones vacías
+      await Future.wait([
+        userDoc.collection('products').doc('_placeholder').set({
+          'createdAt': FieldValue.serverTimestamp(),
+        }).then((_) => userDoc.collection('products').doc('_placeholder').delete()),
+        
+        userDoc.collection('categories').doc('_placeholder').set({
+          'createdAt': FieldValue.serverTimestamp(),
+        }).then((_) => userDoc.collection('categories').doc('_placeholder').delete()),
+        
+        userDoc.collection('sales').doc('_placeholder').set({
+          'createdAt': FieldValue.serverTimestamp(),
+        }).then((_) => userDoc.collection('sales').doc('_placeholder').delete()),
+        
+        userDoc.collection('movements').doc('_placeholder').set({
+          'createdAt': FieldValue.serverTimestamp(),
+        }).then((_) => userDoc.collection('movements').doc('_placeholder').delete()),
+      ]);
 
       return userCredential;
     } catch (e) {

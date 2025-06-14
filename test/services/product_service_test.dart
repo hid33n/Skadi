@@ -42,8 +42,8 @@ void main() {
           price: 10.0,
           stock: 5,
           minStock: 2,
+          maxStock: 10,
           categoryId: 'cat1',
-          category: 'Category 1',
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         ),
@@ -54,8 +54,8 @@ void main() {
           price: 20.0,
           stock: 10,
           minStock: 5,
+          maxStock: 20,
           categoryId: 'cat2',
-          category: 'Category 2',
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         ),
@@ -96,8 +96,8 @@ void main() {
         price: 15.0,
         stock: 8,
         minStock: 3,
+        maxStock: 15,
         categoryId: 'cat1',
-        category: 'Category 1',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -121,8 +121,8 @@ void main() {
         price: 15.0,
         stock: 8,
         minStock: 3,
+        maxStock: 15,
         categoryId: 'cat1',
-        category: 'Category 1',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -143,8 +143,8 @@ void main() {
         price: -15.0,
         stock: 8,
         minStock: 3,
+        maxStock: 15,
         categoryId: 'cat1',
-        category: 'Category 1',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -165,8 +165,8 @@ void main() {
         price: 15.0,
         stock: -8,
         minStock: 3,
+        maxStock: 15,
         categoryId: 'cat1',
-        category: 'Category 1',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -187,8 +187,8 @@ void main() {
         price: 15.0,
         stock: 8,
         minStock: -3,
+        maxStock: 15,
         categoryId: 'cat1',
-        category: 'Category 1',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -209,8 +209,8 @@ void main() {
         price: 25.0,
         stock: 15,
         minStock: 5,
+        maxStock: 25,
         categoryId: 'cat1',
-        category: 'Category 1',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -234,8 +234,8 @@ void main() {
         price: 25.0,
         stock: 15,
         minStock: 5,
+        maxStock: 25,
         categoryId: 'cat1',
-        category: 'Category 1',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -256,8 +256,8 @@ void main() {
         price: -25.0,
         stock: 15,
         minStock: 5,
+        maxStock: 25,
         categoryId: 'cat1',
-        category: 'Category 1',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -278,8 +278,8 @@ void main() {
         price: 25.0,
         stock: -15,
         minStock: 5,
+        maxStock: 25,
         categoryId: 'cat1',
-        category: 'Category 1',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -300,8 +300,8 @@ void main() {
         price: 25.0,
         stock: 15,
         minStock: -5,
+        maxStock: 25,
         categoryId: 'cat1',
-        category: 'Category 1',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -334,23 +334,21 @@ void main() {
         price: 10.0,
         stock: 5,
         minStock: 2,
+        maxStock: 10,
         categoryId: 'cat1',
-        category: 'Category 1',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
 
-      when(mockFirestoreService.getProducts())
-          .thenAnswer((_) async => [product]);
-
-      when(mockFirestoreService.updateProduct('1', any))
-          .thenAnswer((_) async {});
+      await mockFirestoreService.addProduct(product);
 
       // Act
       await productService.updateStock('1', 10);
 
       // Assert
-      verify(mockFirestoreService.updateProduct('1', any)).called(1);
+      final products = await mockFirestoreService.getProducts();
+      expect(products.length, 1);
+      expect(products[0].stock, 10);
     });
 
     test('updateStock throws error when product not found', () async {
@@ -374,8 +372,8 @@ void main() {
         price: 10.0,
         stock: 5,
         minStock: 2,
+        maxStock: 10,
         categoryId: 'cat1',
-        category: 'Category 1',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );

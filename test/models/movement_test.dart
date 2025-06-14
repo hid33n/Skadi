@@ -22,7 +22,7 @@ void main() {
       expect(movement.productId, 'product-id');
       expect(movement.productName, 'Test Product');
       expect(movement.quantity, 5);
-      expect(movement.type, 'entry');
+      expect(movement.type, MovementType.entry);
       expect(movement.note, 'Test Note');
     });
 
@@ -33,7 +33,7 @@ void main() {
         productId: 'product-id',
         productName: 'Test Product',
         quantity: 5,
-        type: 'entry',
+        type: MovementType.entry,
         date: DateTime.now(),
         note: 'Test Note',
       );
@@ -45,7 +45,7 @@ void main() {
       expect(map['productId'], 'product-id');
       expect(map['productName'], 'Test Product');
       expect(map['quantity'], 5);
-      expect(map['type'], 'entry');
+      expect(map['type'], MovementType.entry);
       expect(map['note'], 'Test Note');
     });
 
@@ -56,7 +56,7 @@ void main() {
         productId: 'product-id',
         productName: 'Test Product',
         quantity: 5,
-        type: 'entry',
+        type: MovementType.entry,
         date: DateTime.now(),
         note: 'Test Note',
       );
@@ -65,7 +65,7 @@ void main() {
       final updatedMovement = movement.copyWith(
         productName: 'Updated Product',
         quantity: 10,
-        type: 'exit',
+        type: MovementType.exit,
       );
 
       // Assert
@@ -73,7 +73,7 @@ void main() {
       expect(updatedMovement.productId, 'product-id');
       expect(updatedMovement.productName, 'Updated Product');
       expect(updatedMovement.quantity, 10);
-      expect(updatedMovement.type, 'exit');
+      expect(updatedMovement.type, MovementType.exit);
       expect(updatedMovement.note, 'Test Note');
     });
   });

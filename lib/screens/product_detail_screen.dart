@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/product.dart';
 import '../models/movement.dart';
+import '../models/category.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/movement_viewmodel.dart';
+import '../services/firestore_service.dart';
 import 'edit_product_screen.dart';
 import '../widgets/custom_snackbar.dart';
 
@@ -21,15 +23,39 @@ class ProductDetailScreen extends StatefulWidget {
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   bool _isLoading = false;
+  String? _categoryName;
   final _quantityController = TextEditingController();
   final _noteController = TextEditingController();
   MovementType _selectedType = MovementType.entry;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategory();
+  }
 
   @override
   void dispose() {
     _quantityController.dispose();
     _noteController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCategory() async {
+    try {
+      final category = await context.read<FirestoreService>().getCategoryById(widget.product.categoryId);
+      if (mounted) {
+        setState(() {
+          _categoryName = category?.name ?? 'Sin categoría';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _categoryName = 'Error al cargar categoría';
+        });
+      }
+    }
   }
 
   Future<void> _addMovement() async {
@@ -136,7 +162,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     const SizedBox(height: 16),
                     _buildInfoRow('Nombre', widget.product.name),
                     _buildInfoRow('Descripción', widget.product.description),
-                    _buildInfoRow('Categoría', widget.product.category),
+                    _buildInfoRow('Categoría', _categoryName ?? 'Cargando...'),
                     _buildInfoRow(
                       'Precio',
                       '\$${widget.product.price.toStringAsFixed(2)}',
@@ -148,6 +174,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     _buildInfoRow(
                       'Stock Mínimo',
                       '${widget.product.minStock} unidades',
+                    ),
+                    _buildInfoRow(
+                      'Stock Máximo',
+                      '${widget.product.maxStock} unidades',
                     ),
                   ],
                 ),

@@ -20,6 +20,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _priceController = TextEditingController();
   final _stockController = TextEditingController();
   final _minStockController = TextEditingController();
+  final _maxStockController = TextEditingController();
   Category? _selectedCategory;
 
   @override
@@ -37,6 +38,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _priceController.dispose();
     _stockController.dispose();
     _minStockController.dispose();
+    _maxStockController.dispose();
     super.dispose();
   }
 
@@ -54,9 +56,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
           description: _descriptionController.text,
           price: double.parse(_priceController.text),
           stock: int.parse(_stockController.text),
-          categoryId: _selectedCategory!.id,
           minStock: int.parse(_minStockController.text),
-          category: _selectedCategory!.name,
+          maxStock: int.parse(_maxStockController.text),
+          categoryId: _selectedCategory!.id,
           createdAt: now,
           updatedAt: now,
         );
@@ -180,6 +182,23 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     controller: _minStockController,
                     decoration: const InputDecoration(
                       labelText: 'Stock Mínimo',
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value?.isEmpty ?? true) {
+                        return 'Campo requerido';
+                      }
+                      if (int.tryParse(value!) == null) {
+                        return 'Ingresa un número válido';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _maxStockController,
+                    decoration: const InputDecoration(
+                      labelText: 'Stock Máximo',
                     ),
                     keyboardType: TextInputType.number,
                     validator: (value) {

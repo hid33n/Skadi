@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stock/models/category.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() {
   group('Category Model Tests', () {
@@ -8,8 +9,8 @@ void main() {
       final map = {
         'name': 'Test Category',
         'description': 'Test Description',
-        'createdAt': DateTime.now(),
-        'updatedAt': DateTime.now(),
+        'createdAt': Timestamp.fromDate(DateTime.now()),
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
       };
 
       // Act
