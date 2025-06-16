@@ -278,10 +278,7 @@ class DashboardGrid extends StatelessWidget {
                   icon: Icons.add_box,
                   color: Colors.blue,
                   onTap: () {
-                    final provider = HomeScreenProvider.of(context);
-                    if (provider != null) {
-                      provider.navigateToIndex(1); // Índice de la pantalla de productos
-                    }
+                    Navigator.pushNamed(context, '/add-product');
                   },
                 ),
                 QuickAction(

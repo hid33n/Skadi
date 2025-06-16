@@ -5,6 +5,9 @@ import '../models/category.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
 import '../widgets/custom_snackbar.dart';
+import '../services/auth_service.dart';
+import '../widgets/mobile_navigation.dart';
+import 'home_screen.dart';
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
@@ -21,14 +24,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _stockController = TextEditingController();
   final _minStockController = TextEditingController();
   final _maxStockController = TextEditingController();
-  Category? _selectedCategory;
+  String? _selectedCategory;
+  List<String> _categories = [];
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadCategories();
-    });
+    _loadCategories();
   }
 
   @override
@@ -44,203 +46,210 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
   Future<void> _loadCategories() async {
     await context.read<CategoryViewModel>().loadCategories();
+    setState(() {
+      _categories = context.read<CategoryViewModel>().categories.map((e) => e.name).toList();
+      if (_categories.isNotEmpty) {
+        _selectedCategory = _categories.first;
+      }
+    });
   }
 
   Future<void> _saveProduct() async {
-    if (_formKey.currentState!.validate() && _selectedCategory != null) {
-      try {
-        final now = DateTime.now();
-        final product = Product(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          name: _nameController.text,
-          description: _descriptionController.text,
-          price: double.parse(_priceController.text),
-          stock: int.parse(_stockController.text),
-          minStock: int.parse(_minStockController.text),
-          maxStock: int.parse(_maxStockController.text),
-          categoryId: _selectedCategory!.id,
-          createdAt: now,
-          updatedAt: now,
-        );
-
-        await context.read<ProductViewModel>().addProduct(product);
-        if (mounted) {
-          CustomSnackBar.showSuccess(
-            context: context,
-            message: 'Producto agregado correctamente',
-          );
-          Navigator.pop(context);
-        }
-      } catch (e) {
-        if (mounted) {
-          CustomSnackBar.showError(
-            context: context,
-            message: 'Error al agregar producto: $e',
-          );
-        }
-      }
-    } else if (_selectedCategory == null) {
-      CustomSnackBar.showError(
-        context: context,
-        message: 'Por favor selecciona una categoría',
+    if (_nameController.text.isEmpty ||
+        _descriptionController.text.isEmpty ||
+        _priceController.text.isEmpty ||
+        _stockController.text.isEmpty ||
+        _selectedCategory == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor completa todos los campos')),
       );
+      return;
+    }
+
+    try {
+      final now = DateTime.now();
+      final category = context.read<CategoryViewModel>().categories.firstWhere(
+            (c) => c.name == _selectedCategory,
+          );
+
+      final product = Product(
+        id: '',
+        name: _nameController.text,
+        description: _descriptionController.text,
+        price: double.parse(_priceController.text),
+        stock: int.parse(_stockController.text),
+        minStock: 0,
+        maxStock: 0,
+        categoryId: category.id,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await context.read<ProductViewModel>().addProduct(product);
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al guardar el producto: $e')),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Agregar Producto'),
-      ),
-      body: Consumer<CategoryViewModel>(
-        builder: (context, categoryVM, child) {
-          if (categoryVM.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isTablet = MediaQuery.of(context).size.width >= 600 && MediaQuery.of(context).size.width < 1200;
 
-          if (categoryVM.categories.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('No hay categorías disponibles'),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Volver'),
+    if (isMobile) {
+      return Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Nuevo Producto',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        _buildForm(),
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
-            );
-          }
+              MobileNavigation(
+                selectedIndex: 1, // Índice de la pantalla de productos
+                onDestinationSelected: (index) {
+                  if (index != 1) { // Si no es la pantalla actual
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const HomeScreen(),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    } else if (isTablet) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Nuevo Producto'),
+        ),
+        body: _buildForm(),
+      );
+    } else {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Nuevo Producto'),
+        ),
+        body: _buildForm(),
+      );
+    }
+  }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nombre',
-                    ),
-                    validator: (value) =>
-                        value?.isEmpty ?? true ? 'Campo requerido' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Descripción',
-                    ),
-                    maxLines: 3,
-                    validator: (value) =>
-                        value?.isEmpty ?? true ? 'Campo requerido' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _priceController,
-                    decoration: const InputDecoration(
-                      labelText: 'Precio',
-                      prefixText: '\$',
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value?.isEmpty ?? true) {
-                        return 'Campo requerido';
-                      }
-                      if (double.tryParse(value!) == null) {
-                        return 'Ingresa un número válido';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _stockController,
-                    decoration: const InputDecoration(
-                      labelText: 'Stock Inicial',
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value?.isEmpty ?? true) {
-                        return 'Campo requerido';
-                      }
-                      if (int.tryParse(value!) == null) {
-                        return 'Ingresa un número válido';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _minStockController,
-                    decoration: const InputDecoration(
-                      labelText: 'Stock Mínimo',
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value?.isEmpty ?? true) {
-                        return 'Campo requerido';
-                      }
-                      if (int.tryParse(value!) == null) {
-                        return 'Ingresa un número válido';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _maxStockController,
-                    decoration: const InputDecoration(
-                      labelText: 'Stock Máximo',
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value?.isEmpty ?? true) {
-                        return 'Campo requerido';
-                      }
-                      if (int.tryParse(value!) == null) {
-                        return 'Ingresa un número válido';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<Category>(
-                    value: _selectedCategory,
-                    decoration: const InputDecoration(
-                      labelText: 'Categoría',
-                    ),
-                    items: categoryVM.categories.map((category) {
-                      return DropdownMenuItem<Category>(
-                        value: category,
-                        child: Text(category.name),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedCategory = value;
-                      });
-                    },
-                    validator: (value) =>
-                        value == null ? 'Selecciona una categoría' : null,
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: _saveProduct,
-                    child: const Text('Agregar Producto'),
-                  ),
-                ],
+  Widget _buildForm() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: 'Nombre del Producto',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _descriptionController,
+            decoration: const InputDecoration(
+              labelText: 'Descripción',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _priceController,
+            decoration: const InputDecoration(
+              labelText: 'Precio',
+              border: OutlineInputBorder(),
+              prefixText: '\$',
+            ),
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _stockController,
+            decoration: const InputDecoration(
+              labelText: 'Stock',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: _selectedCategory,
+            decoration: const InputDecoration(
+              labelText: 'Categoría',
+              border: OutlineInputBorder(),
+            ),
+            items: _categories.map((String category) {
+              return DropdownMenuItem<String>(
+                value: category,
+                child: Text(category),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              setState(() {
+                _selectedCategory = newValue;
+              });
+            },
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _saveProduct,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Guardar Producto',
+                style: TextStyle(fontSize: 16),
               ),
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
