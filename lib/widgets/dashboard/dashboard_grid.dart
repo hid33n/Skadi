@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../viewmodels/dashboard_viewmodel.dart';
 import '../../viewmodels/product_viewmodel.dart';
 import '../../viewmodels/category_viewmodel.dart';
+import '../../screens/home_screen.dart';
+import '../../screens/add_sale_screen.dart';
 import 'dashboard_card.dart';
 import 'sales_chart.dart';
 import 'category_distribution.dart';
@@ -262,7 +264,12 @@ class DashboardGrid extends StatelessWidget {
                   icon: Icons.shopping_cart,
                   color: Colors.green,
                   onTap: () {
-                    Navigator.pushNamed(context, '/new-sale');
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AddSaleScreen(),
+                      ),
+                    );
                   },
                 ),
                 QuickAction(
@@ -271,7 +278,10 @@ class DashboardGrid extends StatelessWidget {
                   icon: Icons.add_box,
                   color: Colors.blue,
                   onTap: () {
-                    Navigator.pushNamed(context, '/new-product');
+                    final provider = HomeScreenProvider.of(context);
+                    if (provider != null) {
+                      provider.navigateToIndex(1); // Índice de la pantalla de productos
+                    }
                   },
                 ),
                 QuickAction(
@@ -280,7 +290,10 @@ class DashboardGrid extends StatelessWidget {
                   icon: Icons.category,
                   color: Colors.deepOrange,
                   onTap: () {
-                    Navigator.pushNamed(context, '/new-category');
+                    final provider = HomeScreenProvider.of(context);
+                    if (provider != null) {
+                      provider.navigateToIndex(2); // Índice de la pantalla de categorías
+                    }
                   },
                 ),
               ],
