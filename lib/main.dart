@@ -16,6 +16,7 @@ import 'screens/category_management_screen.dart';
 import 'screens/movement_history_screen.dart';
 import 'screens/sales_screen.dart';
 import 'screens/add_sale_screen.dart';
+import 'screens/add_product_screen.dart';
 import 'widgets/adaptive_navigation.dart';
 import 'widgets/page_transition.dart';
 import 'screens/home_screen.dart';
@@ -87,6 +88,9 @@ class MyApp extends StatelessWidget {
                   break;
                 case '/add-sale':
                   page = const AddSaleScreen();
+                  break;
+                case '/add-product':
+                  page = const AddProductScreen();
                   break;
                 default:
                   page = const LoginScreen();
