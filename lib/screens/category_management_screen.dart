@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/firestore_service.dart';
+import '../services/auth_service.dart';
 import '../models/category.dart';
 
 class CategoryManagementScreen extends StatefulWidget {
@@ -14,6 +15,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _authService = AuthService();
   List<Category> _categories = [];
 
   @override
@@ -27,6 +29,19 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
     _nameController.dispose();
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await _authService.signOut();
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cerrar sesión: ${e.toString()}')),
+      );
+    }
   }
 
   Future<void> _loadCategories() async {
@@ -89,6 +104,12 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gestión de Categorías'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _signOut,
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

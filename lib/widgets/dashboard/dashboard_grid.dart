@@ -29,280 +29,345 @@ class DashboardGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenType = getScreenType(context);
-    int crossAxisCount;
-    double aspectRatio;
-    switch (screenType) {
-      case ScreenType.mobile:
-        crossAxisCount = 1;
-        aspectRatio = 1.8;
-        break;
-      case ScreenType.tablet:
-        crossAxisCount = 2;
-        aspectRatio = 1.5;
-        break;
-      case ScreenType.web:
-        crossAxisCount = 4;
-        aspectRatio = 1.5;
-        break;
-    }
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isTablet = MediaQuery.of(context).size.width >= 600 && MediaQuery.of(context).size.width < 1200;
 
-    final items = [
-      // Resumen de Ventas
-      DashboardCard(
-        title: 'Ventas del Período',
-        icon: Icons.bar_chart,
-        iconColor: Colors.blueAccent,
-        child: Consumer<DashboardViewModel>(
-          builder: (context, viewModel, _) {
-            if (viewModel.isLoading) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (viewModel.error != null) {
-              return Center(
-                child: Text(
-                  'Error: ${viewModel.error}',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              );
-            }
-            // Responsive: columna en móvil, fila en tablet/web
-            final isMobile = screenType == ScreenType.mobile;
-            return Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+    if (isMobile) {
+      return _buildMobileLayout(context);
+    } else if (isTablet) {
+      return _buildTabletLayout(context);
+    } else {
+      return _buildDesktopLayout(context);
+    }
+  }
+
+  Widget _buildMobileLayout(BuildContext context) {
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildSalesSummary(context),
+            const SizedBox(height: 16),
+            _buildQuickActions(context),
+            const SizedBox(height: 16),
+            _buildSalesChart(context),
+            const SizedBox(height: 16),
+            _buildCategoryDistribution(context),
+            const SizedBox(height: 16),
+            _buildStockTrends(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabletLayout(BuildContext context) {
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.attach_money, color: Colors.green, size: 32),
-                    const SizedBox(width: 8),
-                    Text(
-                      '\$${viewModel.monthSales.toStringAsFixed(2)}',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: Colors.green[700],
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                Expanded(
+                  flex: 2,
+                  child: _buildSalesSummary(context),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Ventas del mes',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.blueGrey[700],
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 1,
+                  child: _buildQuickActions(context),
                 ),
-                const SizedBox(height: 16),
-                isMobile
-                    ? Column(
-                        children: [
-                          _SalesTotalTile(
-                            icon: Icons.today,
-                            color: Colors.blue,
-                            label: 'Hoy',
-                            value: viewModel.todaySales,
-                          ),
-                          const SizedBox(height: 8),
-                          _SalesTotalTile(
-                            icon: Icons.calendar_view_week,
-                            color: Colors.orange,
-                            label: 'Semana',
-                            value: viewModel.weekSales,
-                          ),
-                        ],
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          Expanded(
-                            child: _SalesTotalTile(
-                              icon: Icons.today,
-                              color: Colors.blue,
-                              label: 'Hoy',
-                              value: viewModel.todaySales,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _SalesTotalTile(
-                              icon: Icons.calendar_view_week,
-                              color: Colors.orange,
-                              label: 'Semana',
-                              value: viewModel.weekSales,
-                            ),
-                          ),
-                        ],
-                      ),
               ],
-            );
-          },
-        ),
-      ),
-      // Gráfico de Ventas
-      DashboardCard(
-        title: 'Tendencia de Ventas',
-        icon: Icons.show_chart,
-        iconColor: Colors.purple,
-        child: const SalesChart(),
-      ),
-      // Distribución por Categoría
-      DashboardCard(
-        title: 'Productos por Categoría',
-        icon: Icons.pie_chart,
-        iconColor: Colors.deepOrange,
-        child: const CategoryDistribution(),
-      ),
-      // Tendencias de Stock
-      DashboardCard(
-        title: 'Tendencias de Stock',
-        icon: Icons.trending_up,
-        iconColor: Colors.teal,
-        child: const StockTrends(),
-      ),
-      // Productos con Stock Bajo
-      DashboardCard(
-        title: 'Stock Bajo',
-        icon: Icons.warning,
-        iconColor: Colors.redAccent,
-        child: Consumer<DashboardViewModel>(
-          builder: (context, viewModel, _) {
-            if (viewModel.isLoading) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (viewModel.error != null) {
-              return Center(
-                child: Text(
-                  'Error: ${viewModel.error}',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _buildSalesChart(context),
                 ),
-              );
-            }
-            final lowStockProducts = viewModel.lowStockProducts;
-            if (lowStockProducts.isEmpty) {
-              return const Center(
-                child: Text('No hay productos con stock bajo'),
-              );
-            }
-            return ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: lowStockProducts.length,
-              itemBuilder: (context, index) {
-                final product = lowStockProducts[index];
-                return ListTile(
-                  leading: Icon(Icons.inventory_2, color: Colors.redAccent),
-                  title: Text(product.name, overflow: TextOverflow.ellipsis),
-                  subtitle: Text('Stock: ${product.stock}'),
-                  trailing: Text(
-                    'Mín: ${product.minStock}',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                );
-              },
-            );
-          },
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildCategoryDistribution(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildStockTrends(context),
+          ],
         ),
       ),
-      // Acciones Rápidas
-      DashboardCard(
-        title: 'Acciones Rápidas',
-        icon: Icons.flash_on,
-        iconColor: Colors.amber,
-        child: QuickActions(
-          actions: [
-            QuickAction(
-              title: 'Nueva Venta',
-              subtitle: 'Registrar una nueva venta',
-              icon: Icons.shopping_cart,
-              color: Colors.green,
-              onTap: () {
-                Navigator.pushNamed(context, '/new-sale');
-              },
+    );
+  }
+
+  Widget _buildDesktopLayout(BuildContext context) {
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: _buildSalesSummary(context),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 1,
+                  child: _buildQuickActions(context),
+                ),
+              ],
             ),
-            QuickAction(
-              title: 'Nuevo Producto',
-              subtitle: 'Agregar un nuevo producto',
-              icon: Icons.add_box,
-              color: Colors.blue,
-              onTap: () {
-                Navigator.pushNamed(context, '/new-product');
-              },
-            ),
-            QuickAction(
-              title: 'Nueva Categoría',
-              subtitle: 'Crear una nueva categoría',
-              icon: Icons.category,
-              color: Colors.deepOrange,
-              onTap: () {
-                Navigator.pushNamed(context, '/new-category');
-              },
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: _buildSalesChart(context),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 1,
+                  child: Column(
+                    children: [
+                      _buildCategoryDistribution(context),
+                      const SizedBox(height: 16),
+                      _buildStockTrends(context),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: aspectRatio,
-      ),
-      padding: const EdgeInsets.all(16),
-      itemCount: items.length,
-      itemBuilder: (context, index) => items[index],
     );
   }
-}
 
-class _SalesTotalTile extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String label;
-  final double value;
-
-  const _SalesTotalTile({
-    required this.icon,
-    required this.color,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: color.withOpacity(0.08),
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 6),
-            Text(
-              '\$${value.toStringAsFixed(2)}',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                  ),
+  Widget _buildSalesSummary(BuildContext context) {
+    return Consumer<DashboardViewModel>(
+      builder: (context, viewModel, _) {
+        if (viewModel.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Resumen de Ventas',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    Icon(Icons.bar_chart, color: Theme.of(context).primaryColor),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildSalesMetric(
+                      context,
+                      'Hoy',
+                      viewModel.todaySales,
+                      Icons.today,
+                      Colors.blue,
+                    ),
+                    _buildSalesMetric(
+                      context,
+                      'Semana',
+                      viewModel.weekSales,
+                      Icons.calendar_view_week,
+                      Colors.orange,
+                    ),
+                    _buildSalesMetric(
+                      context,
+                      'Mes',
+                      viewModel.monthSales,
+                      Icons.calendar_month,
+                      Colors.green,
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                  ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSalesMetric(
+    BuildContext context,
+    String label,
+    double value,
+    IconData icon,
+    Color color,
+  ) {
+    return Column(
+      children: [
+        Icon(icon, color: color),
+        const SizedBox(height: 8),
+        Text(
+          '\$${value.toStringAsFixed(2)}',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: color,
+              ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickActions(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Acciones Rápidas',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                Icon(Icons.flash_on, color: Theme.of(context).primaryColor),
+              ],
+            ),
+            const SizedBox(height: 16),
+            QuickActions(
+              actions: [
+                QuickAction(
+                  title: 'Nueva Venta',
+                  subtitle: 'Registrar una nueva venta',
+                  icon: Icons.shopping_cart,
+                  color: Colors.green,
+                  onTap: () {
+                    Navigator.pushNamed(context, '/new-sale');
+                  },
+                ),
+                QuickAction(
+                  title: 'Nuevo Producto',
+                  subtitle: 'Agregar un nuevo producto',
+                  icon: Icons.add_box,
+                  color: Colors.blue,
+                  onTap: () {
+                    Navigator.pushNamed(context, '/new-product');
+                  },
+                ),
+                QuickAction(
+                  title: 'Nueva Categoría',
+                  subtitle: 'Crear una nueva categoría',
+                  icon: Icons.category,
+                  color: Colors.deepOrange,
+                  onTap: () {
+                    Navigator.pushNamed(context, '/new-category');
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSalesChart(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Ventas Recientes',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                Icon(Icons.show_chart, color: Theme.of(context).primaryColor),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const SizedBox(
+              height: 200,
+              child: SalesChart(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryDistribution(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Distribución por Categoría',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                Icon(Icons.pie_chart, color: Theme.of(context).primaryColor),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const SizedBox(
+              height: 200,
+              child: CategoryDistribution(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStockTrends(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Tendencias de Stock',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                Icon(Icons.trending_up, color: Theme.of(context).primaryColor),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const SizedBox(
+              height: 200,
+              child: StockTrends(),
             ),
           ],
         ),

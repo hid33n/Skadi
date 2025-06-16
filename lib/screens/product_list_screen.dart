@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/product.dart';
 import '../models/category.dart';
 import '../services/firestore_service.dart';
+import '../services/auth_service.dart';
 import 'new_product_screen.dart';
 
 class ProductListScreen extends StatefulWidget {
@@ -20,6 +21,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
   List<Category> _categories = [];
   bool _isLoading = true;
   String? _error;
+  final _authService = AuthService();
 
   @override
   void initState() {
@@ -48,6 +50,19 @@ class _ProductListScreenState extends State<ProductListScreen> {
         _error = e.toString();
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await _authService.signOut();
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cerrar sesión: ${e.toString()}')),
+      );
     }
   }
 
@@ -114,6 +129,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
               );
               _loadData();
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _signOut,
           ),
         ],
       ),
