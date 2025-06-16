@@ -6,6 +6,8 @@ import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/sale_viewmodel.dart';
 import '../widgets/custom_snackbar.dart';
 import '../services/auth_service.dart';
+import '../widgets/mobile_navigation.dart';
+import 'home_screen.dart';
 
 class AddSaleScreen extends StatefulWidget {
   const AddSaleScreen({super.key});
@@ -22,6 +24,7 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
   String? _selectedProductName;
   double? _selectedProductPrice;
   int _quantity = 1;
+  final _formKey = GlobalKey<FormState>();
 
   @override
   void initState() {
@@ -58,6 +61,7 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
   }
 
   Future<void> _saveSale() async {
+    if (!_formKey.currentState!.validate()) return;
     if (_selectedProductId == null) {
       CustomSnackBar.showError(
         context: context,
@@ -116,9 +120,16 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isTablet = MediaQuery.of(context).size.width >= 600 && MediaQuery.of(context).size.width < 1200;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nueva Venta'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: Consumer<ProductViewModel>(
         builder: (context, productVM, child) {
@@ -132,142 +143,415 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
 
           final filteredProducts = _getFilteredProducts(productVM.products);
 
-          return Row(
-            children: [
-              // Lista de productos
-              Expanded(
-                flex: 2,
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: TextField(
-                        decoration: InputDecoration(
-                          labelText: 'Buscar productos',
-                          prefixIcon: const Icon(Icons.search),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+          if (isMobile) {
+            return Column(
+              children: [
+                Expanded(
+                  child: _buildMobileLayout(filteredProducts),
+                ),
+                MobileNavigation(
+                  selectedIndex: 4, // Índice de la pantalla de ventas
+                  onDestinationSelected: (index) {
+                    if (index != 4) { // Si no es la pantalla actual
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const HomeScreen(),
                         ),
-                        onChanged: (value) {
-                          setState(() {
-                            _searchQuery = value;
-                          });
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: filteredProducts.length,
-                        itemBuilder: (context, index) {
-                          final product = filteredProducts[index];
-                          return ListTile(
-                            title: Text(product.name),
-                            subtitle: Text('Stock: ${product.stock}'),
-                            trailing: Text('\$${product.price.toStringAsFixed(2)}'),
-                            onTap: () => _selectProduct(product),
-                          );
-                        },
-                      ),
+                        (route) => false,
+                      );
+                    }
+                  },
+                ),
+              ],
+            );
+          } else if (isTablet) {
+            return _buildTabletLayout(filteredProducts);
+          } else {
+            return _buildDesktopLayout(filteredProducts);
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildMobileLayout(List<Product> filteredProducts) {
+    return Form(
+      key: _formKey,
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                decoration: InputDecoration(
+                  labelText: 'Buscar productos',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+              ),
+            ),
+            if (_selectedProductId != null)
+              Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
+                child: _buildSelectedProductDetails(),
               ),
-              // Carrito
-              Expanded(
-                flex: 1,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    border: Border(
-                      left: BorderSide(
-                        color: Colors.grey[300]!,
-                        width: 1,
-                      ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  TextFormField(
+                    controller: _customerNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre del Cliente',
+                      border: OutlineInputBorder(),
                     ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Por favor ingrese el nombre del cliente';
+                      }
+                      return null;
+                    },
                   ),
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            TextField(
-                              controller: _customerNameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Nombre del Cliente',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            TextField(
-                              controller: _noteController,
-                              decoration: const InputDecoration(
-                                labelText: 'Notas',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            if (_selectedProductId != null)
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Producto: $_selectedProductName',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Precio: \$${_selectedProductPrice!.toStringAsFixed(2)}',
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.remove),
-                                        onPressed: () => _updateQuantity(_quantity - 1),
-                                      ),
-                                      Text(
-                                        '$_quantity',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.add),
-                                        onPressed: () => _updateQuantity(_quantity + 1),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Total: \$${(_selectedProductPrice! * _quantity).toStringAsFixed(2)}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: _saveSale,
-                              child: const Text('Guardar Venta'),
-                            ),
-                          ],
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _noteController,
+                    decoration: const InputDecoration(
+                      labelText: 'Notas',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: filteredProducts.length,
+                itemBuilder: (context, index) {
+                  final product = filteredProducts[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Text(product.name),
+                      subtitle: Text('Stock: ${product.stock}'),
+                      trailing: Text(
+                        '\$${product.price.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
                       ),
-                    ],
+                      onTap: () => _selectProduct(product),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabletLayout(List<Product> filteredProducts) {
+    return Form(
+      key: _formKey,
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: TextField(
+                    decoration: InputDecoration(
+                      labelText: 'Buscar productos',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
                   ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: filteredProducts.length,
+                    itemBuilder: (context, index) {
+                      final product = filteredProducts[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          title: Text(product.name),
+                          subtitle: Text('Stock: ${product.stock}'),
+                          trailing: Text(
+                            '\$${product.price.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          onTap: () => _selectProduct(product),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const VerticalDivider(),
+          Expanded(
+            flex: 1,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextFormField(
+                    controller: _customerNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre del Cliente',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Por favor ingrese el nombre del cliente';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _noteController,
+                    decoration: const InputDecoration(
+                      labelText: 'Notas',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 24),
+                  if (_selectedProductId != null) _buildSelectedProductDetails(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopLayout(List<Product> filteredProducts) {
+    return Form(
+      key: _formKey,
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: TextField(
+                    decoration: InputDecoration(
+                      labelText: 'Buscar productos',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: filteredProducts.length,
+                    itemBuilder: (context, index) {
+                      final product = filteredProducts[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          title: Text(product.name),
+                          subtitle: Text('Stock: ${product.stock}'),
+                          trailing: Text(
+                            '\$${product.price.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          onTap: () => _selectProduct(product),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const VerticalDivider(),
+          Expanded(
+            flex: 1,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextFormField(
+                    controller: _customerNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre del Cliente',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Por favor ingrese el nombre del cliente';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _noteController,
+                    decoration: const InputDecoration(
+                      labelText: 'Notas',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 24),
+                  if (_selectedProductId != null) _buildSelectedProductDetails(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectedProductDetails() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Producto: $_selectedProductName',
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Precio: \$${_selectedProductPrice!.toStringAsFixed(2)}',
+          style: const TextStyle(
+            fontSize: 18,
+          ),
+        ),
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.remove_circle_outline),
+              iconSize: 32,
+              onPressed: () => _updateQuantity(_quantity - 1),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              decoration: BoxDecoration(
+                border: Border.all(color: Theme.of(context).primaryColor),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '$_quantity',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              iconSize: 32,
+              onPressed: () => _updateQuantity(_quantity + 1),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total:',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                '\$${(_selectedProductPrice! * _quantity).toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).primaryColor,
                 ),
               ),
             ],
-          );
-        },
-      ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _saveSale,
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: const Text('Guardar Venta'),
+          ),
+        ),
+      ],
     );
   }
 } 
