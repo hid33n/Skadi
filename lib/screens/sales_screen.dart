@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/sale_viewmodel.dart';
 import '../models/sale.dart';
+import '../services/auth_service.dart';
 
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
@@ -12,6 +13,7 @@ class SalesScreen extends StatefulWidget {
 
 class _SalesScreenState extends State<SalesScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final _authService = AuthService();
   String _searchQuery = '';
 
   @override
@@ -26,6 +28,19 @@ class _SalesScreenState extends State<SalesScreen> {
     super.dispose();
   }
 
+  Future<void> _signOut() async {
+    try {
+      await _authService.signOut();
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cerrar sesión: ${e.toString()}')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -37,6 +52,10 @@ class _SalesScreenState extends State<SalesScreen> {
             onPressed: () {
               // TODO: Implementar pantalla de nueva venta
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _signOut,
           ),
         ],
       ),

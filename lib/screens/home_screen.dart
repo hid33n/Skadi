@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/adaptive_navigation.dart';
+import '../widgets/mobile_navigation.dart';
 import '../widgets/responsive_layout.dart';
 import '../services/auth_service.dart';
 import '../theme/responsive.dart';
@@ -61,45 +62,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildMobileLayout() {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Skadi'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.logout),
-            onPressed: _signOut,
-          ),
-        ],
-      ),
       body: _screens[_selectedIndex],
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: MobileNavigation(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
           setState(() {
             _selectedIndex = index;
           });
         },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.inventory),
-            label: 'Productos',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.category),
-            label: 'Categorías',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.history),
-            label: 'Movimientos',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.shopping_cart),
-            label: 'Ventas',
-          ),
-        ],
       ),
     );
   }

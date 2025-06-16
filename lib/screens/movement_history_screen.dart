@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/movement.dart';
 import '../viewmodels/movement_viewmodel.dart';
 import '../viewmodels/product_viewmodel.dart';
+import '../services/auth_service.dart';
 
 class MovementHistoryScreen extends StatefulWidget {
   const MovementHistoryScreen({super.key});
@@ -16,6 +17,7 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
   MovementType? _selectedType;
   DateTime? _startDate;
   DateTime? _endDate;
+  final _authService = AuthService();
 
   @override
   void initState() {
@@ -23,6 +25,19 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
     });
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await _authService.signOut();
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cerrar sesión: ${e.toString()}')),
+      );
+    }
   }
 
   Future<void> _loadData() async {
@@ -65,6 +80,15 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Historial de Movimientos'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _signOut,
+          ),
+        ],
+      ),
       body: Consumer2<MovementViewModel, ProductViewModel>(
         builder: (context, movementVM, productVM, child) {
           if (movementVM.isLoading || productVM.isLoading) {
