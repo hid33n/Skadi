@@ -14,8 +14,8 @@ class StockStatus extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (productVM.error != null && productVM.error!.isNotEmpty) {
-          return Center(child: Text('Error: ${productVM.error}'));
+        if (productVM.error != null && productVM.errorMessage != null) {
+          return Center(child: Text('Error: ${productVM.errorMessage}'));
         }
 
         final totalProducts = productVM.products.length;
