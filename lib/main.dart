@@ -70,6 +70,7 @@ class MyApp extends StatelessWidget {
         builder: (context, themeViewModel, _) {
           return MaterialApp(
             title: 'Skadi',
+            debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeViewModel.isDarkMode ? ThemeMode.dark : ThemeMode.light,

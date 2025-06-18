@@ -6,7 +6,12 @@ import '../theme/responsive.dart';
 import '../services/auth_service.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final bool showAppBar;
+  
+  const DashboardScreen({
+    super.key,
+    this.showAppBar = true,
+  });
 
   @override
   _DashboardScreenState createState() => _DashboardScreenState();
@@ -39,6 +44,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final body = RefreshIndicator(
+      onRefresh: () => context.read<DashboardViewModel>().loadDashboardData(),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: widget.showAppBar ? Responsive.getResponsivePadding(context) : EdgeInsets.zero,
+        child: Consumer<DashboardViewModel>(
+          builder: (context, viewModel, _) {
+            if (viewModel.isLoading) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            if (viewModel.error != null) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Error: ${viewModel.error}',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () => viewModel.loadDashboardData(),
+                        child: const Text('Reintentar'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return const DashboardGrid();
+          },
+        ),
+      ),
+    );
+
+    // Si no debe mostrar AppBar, retornar solo el body
+    if (!widget.showAppBar) {
+      return body;
+    }
+
+    // Si debe mostrar AppBar, retornar el Scaffold completo
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dashboard'),
@@ -52,52 +110,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () => context.read<DashboardViewModel>().loadDashboardData(),
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: Responsive.getResponsivePadding(context),
-          child: Consumer<DashboardViewModel>(
-            builder: (context, viewModel, _) {
-              if (viewModel.isLoading) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-              }
-
-              if (viewModel.error != null) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Error: ${viewModel.error}',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () => viewModel.loadDashboardData(),
-                          child: const Text('Reintentar'),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }
-
-              return const DashboardGrid();
-            },
-          ),
-        ),
-      ),
+      body: body,
     );
   }
 } 

@@ -86,7 +86,20 @@ class _HomeScreenState extends State<HomeScreen> {
       navigateToIndex: navigateToIndex,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_getTitle(_selectedIndex)),
+          title: Row(
+            children: [
+              Icon(Icons.inventory, color: Theme.of(context).primaryColor),
+              const SizedBox(width: 8),
+              const Text(
+                'Skadi Stock',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                ),
+              ),
+            ],
+          ),
+          automaticallyImplyLeading: false,
           actions: [
             IconButton(
               icon: const Icon(Icons.logout),
@@ -97,7 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
         body: IndexedStack(
           index: _selectedIndex,
           children: [
-            const DashboardScreen(),
+            const DashboardScreen(showAppBar: false),
             const ProductListScreen(),
             const CategoryManagementScreen(),
             const MovementHistoryScreen(),
@@ -117,7 +130,20 @@ class _HomeScreenState extends State<HomeScreen> {
       navigateToIndex: navigateToIndex,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_getTitle(_selectedIndex)),
+          title: Row(
+            children: [
+              Icon(Icons.inventory, color: Theme.of(context).primaryColor),
+              const SizedBox(width: 8),
+              const Text(
+                'Skadi Stock',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                ),
+              ),
+            ],
+          ),
+          automaticallyImplyLeading: false,
           actions: [
             IconButton(
               icon: const Icon(Icons.logout),
@@ -159,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: IndexedStack(
                 index: _selectedIndex,
                 children: [
-                  const DashboardScreen(),
+                  const DashboardScreen(showAppBar: false),
                   const ProductListScreen(),
                   const CategoryManagementScreen(),
                   const MovementHistoryScreen(),
@@ -178,7 +204,20 @@ class _HomeScreenState extends State<HomeScreen> {
       navigateToIndex: navigateToIndex,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_getTitle(_selectedIndex)),
+          title: Row(
+            children: [
+              Icon(Icons.inventory, color: Theme.of(context).primaryColor),
+              const SizedBox(width: 8),
+              const Text(
+                'Skadi Stock',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                ),
+              ),
+            ],
+          ),
+          automaticallyImplyLeading: false,
           actions: [
             IconButton(
               icon: const Icon(Icons.logout),
@@ -220,7 +259,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: IndexedStack(
                 index: _selectedIndex,
                 children: [
-                  const DashboardScreen(),
+                  const DashboardScreen(showAppBar: false),
                   const ProductListScreen(),
                   const CategoryManagementScreen(),
                   const MovementHistoryScreen(),
