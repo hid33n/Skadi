@@ -4,9 +4,10 @@ import '../models/product.dart';
 import '../models/category.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
-import '../widgets/custom_snackbar.dart';
+import '../viewmodels/organization_viewmodel.dart';
 import '../services/auth_service.dart';
 import '../widgets/mobile_navigation.dart';
+import '../utils/error_handler.dart';
 import 'home_screen.dart';
 
 class AddProductScreen extends StatefulWidget {
@@ -45,24 +46,33 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Future<void> _loadCategories() async {
-    await context.read<CategoryViewModel>().loadCategories();
-    setState(() {
-      _categories = context.read<CategoryViewModel>().categories.map((e) => e.name).toList();
-      if (_categories.isNotEmpty) {
-        _selectedCategory = _categories.first;
-      }
-    });
+    final organizationViewModel = context.read<OrganizationViewModel>();
+    final organizationId = organizationViewModel.currentOrganization?.id;
+    
+    if (organizationId != null) {
+      await context.read<CategoryViewModel>().loadCategories(organizationId);
+      setState(() {
+        _categories = context.read<CategoryViewModel>().categories.map((e) => e.name).toList();
+        if (_categories.isNotEmpty) {
+          _selectedCategory = _categories.first;
+        }
+      });
+    }
   }
 
   Future<void> _saveProduct() async {
-    if (_nameController.text.isEmpty ||
-        _descriptionController.text.isEmpty ||
-        _priceController.text.isEmpty ||
-        _stockController.text.isEmpty ||
-        _selectedCategory == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor completa todos los campos')),
-      );
+    if (!_formKey.currentState!.validate()) return;
+    
+    if (_selectedCategory == null) {
+      context.showError('Por favor seleccione una categoría');
+      return;
+    }
+
+    final organizationViewModel = context.read<OrganizationViewModel>();
+    final organizationId = organizationViewModel.currentOrganization?.id;
+    
+    if (organizationId == null) {
+      context.showError('No se pudo obtener la información de la organización');
       return;
     }
 
@@ -74,26 +84,31 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
       final product = Product(
         id: '',
-        name: _nameController.text,
-        description: _descriptionController.text,
+        name: _nameController.text.trim(),
+        description: _descriptionController.text.trim(),
         price: double.parse(_priceController.text),
         stock: int.parse(_stockController.text),
-        minStock: 0,
-        maxStock: 0,
+        minStock: int.parse(_minStockController.text),
+        maxStock: int.parse(_maxStockController.text),
         categoryId: category.id,
+        organizationId: organizationId,
         createdAt: now,
         updatedAt: now,
       );
 
-      await context.read<ProductViewModel>().addProduct(product);
-      if (mounted) {
+      final success = await context.read<ProductViewModel>().addProduct(product);
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Producto guardado exitosamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar el producto: $e')),
-        );
+        context.showError(e);
       }
     }
   }
@@ -173,84 +188,187 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Widget _buildForm() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: 'Nombre del Producto',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _descriptionController,
-            decoration: const InputDecoration(
-              labelText: 'Descripción',
-              border: OutlineInputBorder(),
-            ),
-            maxLines: 3,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _priceController,
-            decoration: const InputDecoration(
-              labelText: 'Precio',
-              border: OutlineInputBorder(),
-              prefixText: '\$',
-            ),
-            keyboardType: TextInputType.number,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _stockController,
-            decoration: const InputDecoration(
-              labelText: 'Stock',
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.number,
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            value: _selectedCategory,
-            decoration: const InputDecoration(
-              labelText: 'Categoría',
-              border: OutlineInputBorder(),
-            ),
-            items: _categories.map((String category) {
-              return DropdownMenuItem<String>(
-                value: category,
-                child: Text(category),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              setState(() {
-                _selectedCategory = newValue;
-              });
-            },
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _saveProduct,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+    return Consumer<ProductViewModel>(
+      builder: (context, productViewModel, child) {
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre del Producto *',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'El nombre es requerido';
+                    }
+                    return null;
+                  },
                 ),
-              ),
-              child: const Text(
-                'Guardar Producto',
-                style: TextStyle(fontSize: 16),
-              ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _descriptionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Descripción *',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'La descripción es requerida';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _priceController,
+                  decoration: const InputDecoration(
+                    labelText: 'Precio *',
+                    border: OutlineInputBorder(),
+                    prefixText: '\$',
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'El precio es requerido';
+                    }
+                    if (double.tryParse(value) == null) {
+                      return 'Ingresa un precio válido';
+                    }
+                    if (double.parse(value) <= 0) {
+                      return 'El precio debe ser mayor a 0';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _stockController,
+                        decoration: const InputDecoration(
+                          labelText: 'Stock Actual *',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'El stock es requerido';
+                          }
+                          if (int.tryParse(value) == null) {
+                            return 'Ingresa un número válido';
+                          }
+                          if (int.parse(value) < 0) {
+                            return 'El stock no puede ser negativo';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _minStockController,
+                        decoration: const InputDecoration(
+                          labelText: 'Stock Mínimo *',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'El stock mínimo es requerido';
+                          }
+                          if (int.tryParse(value) == null) {
+                            return 'Ingresa un número válido';
+                          }
+                          if (int.parse(value) < 0) {
+                            return 'El stock mínimo no puede ser negativo';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _maxStockController,
+                        decoration: const InputDecoration(
+                          labelText: 'Stock Máximo *',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'El stock máximo es requerido';
+                          }
+                          if (int.tryParse(value) == null) {
+                            return 'Ingresa un número válido';
+                          }
+                          if (int.parse(value) < 0) {
+                            return 'El stock máximo no puede ser negativo';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _selectedCategory,
+                  decoration: const InputDecoration(
+                    labelText: 'Categoría *',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _categories.map((String category) {
+                    return DropdownMenuItem<String>(
+                      value: category,
+                      child: Text(category),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _selectedCategory = newValue;
+                    });
+                  },
+                  validator: (value) {
+                    if (value == null) {
+                      return 'Selecciona una categoría';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: productViewModel.isLoading ? null : _saveProduct,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: productViewModel.isLoading
+                        ? const CircularProgressIndicator()
+                        : const Text(
+                            'Guardar Producto',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 } 

@@ -4,6 +4,7 @@ import '../viewmodels/dashboard_viewmodel.dart';
 import '../widgets/dashboard/dashboard_grid.dart';
 import '../theme/responsive.dart';
 import '../services/auth_service.dart';
+import '../utils/error_handler.dart';
 
 class DashboardScreen extends StatefulWidget {
   final bool showAppBar;
@@ -36,9 +37,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Navigator.of(context).pushReplacementNamed('/login');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al cerrar sesión: ${e.toString()}')),
-      );
+      if (mounted) {
+        context.showError(e);
+      }
     }
   }
 
@@ -67,11 +68,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Colors.red[300],
+                      ),
+                      const SizedBox(height: 16),
                       Text(
-                        'Error: ${viewModel.error}',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
+                        viewModel.error!,
+                        style: const TextStyle(fontSize: 16),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),

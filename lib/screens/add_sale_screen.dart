@@ -4,8 +4,9 @@ import '../models/product.dart';
 import '../models/sale.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/sale_viewmodel.dart';
-import '../widgets/custom_snackbar.dart';
+import '../viewmodels/organization_viewmodel.dart';
 import '../services/auth_service.dart';
+import '../utils/error_handler.dart';
 import '../widgets/mobile_navigation.dart';
 import 'home_screen.dart';
 
@@ -24,6 +25,7 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
   String? _selectedProductName;
   double? _selectedProductPrice;
   int _quantity = 1;
+  bool _isSaving = false;
   final _formKey = GlobalKey<FormState>();
 
   @override
@@ -40,7 +42,12 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
   }
 
   Future<void> _loadProducts() async {
-    await context.read<ProductViewModel>().loadProducts();
+    final organizationViewModel = context.read<OrganizationViewModel>();
+    final organizationId = organizationViewModel.currentOrganization?.id;
+    
+    if (organizationId != null) {
+      await context.read<ProductViewModel>().loadProducts(organizationId);
+    }
   }
 
   void _selectProduct(Product product) {
@@ -63,20 +70,26 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
   Future<void> _saveSale() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedProductId == null) {
-      CustomSnackBar.showError(
-        context: context,
-        message: 'Seleccione un producto',
-      );
+      context.showError('Seleccione un producto');
       return;
     }
+
+    final organizationViewModel = context.read<OrganizationViewModel>();
+    final organizationId = organizationViewModel.currentOrganization?.id;
+    
+    if (organizationId == null) {
+      context.showError('No se pudo obtener la información de la organización');
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
 
     try {
       final userId = context.read<AuthService>().currentUser?.uid;
       if (userId == null) {
-        CustomSnackBar.showError(
-          context: context,
-          message: 'No hay usuario autenticado',
-        );
+        context.showError('No hay usuario autenticado');
         return;
       }
 
@@ -88,23 +101,31 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
         amount: _selectedProductPrice! * _quantity,
         quantity: _quantity,
         date: DateTime.now(),
-        notes: _noteController.text.isEmpty ? null : _noteController.text,
+        notes: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+        organizationId: organizationId,
       );
 
-      await context.read<SaleViewModel>().addSale(sale);
-      if (mounted) {
-        CustomSnackBar.showSuccess(
-          context: context,
-          message: 'Venta registrada correctamente',
-        );
-        Navigator.pop(context);
+      final success = await context.read<SaleViewModel>().addSale(sale);
+      if (success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Venta registrada correctamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context);
+        }
       }
     } catch (e) {
       if (mounted) {
-        CustomSnackBar.showError(
-          context: context,
-          message: 'Error al registrar la venta: $e',
-        );
+        context.showError(e);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
       }
     }
   }
@@ -130,6 +151,20 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          if (_selectedProductId != null)
+            IconButton(
+              icon: _isSaving 
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save),
+              onPressed: _isSaving ? null : _saveSale,
+              tooltip: 'Guardar venta',
+            ),
+        ],
       ),
       body: Consumer<ProductViewModel>(
         builder: (context, productVM, child) {
@@ -137,11 +172,56 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (productVM.error != null && productVM.error!.isNotEmpty) {
-            return Center(child: Text('Error: ${productVM.error}'));
+          if (productVM.error != null) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.red[300],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    productVM.error!.message,
+                    style: const TextStyle(fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadProducts,
+                    child: const Text('Reintentar'),
+                  ),
+                ],
+              ),
+            );
           }
 
           final filteredProducts = _getFilteredProducts(productVM.products);
+
+          if (filteredProducts.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.inventory_2_outlined,
+                    size: 64,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _searchQuery.isEmpty
+                        ? 'No hay productos con stock disponible'
+                        : 'No se encontraron productos',
+                    style: const TextStyle(fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            );
+          }
 
           if (isMobile) {
             return Column(

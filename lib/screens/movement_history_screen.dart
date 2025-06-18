@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../models/movement.dart';
 import '../viewmodels/movement_viewmodel.dart';
 import '../viewmodels/product_viewmodel.dart';
+import '../viewmodels/organization_viewmodel.dart';
 import '../services/auth_service.dart';
+import '../utils/error_handler.dart';
 
 class MovementHistoryScreen extends StatefulWidget {
   const MovementHistoryScreen({super.key});
@@ -34,19 +36,22 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
         Navigator.of(context).pushReplacementNamed('/login');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al cerrar sesión: ${e.toString()}')),
-      );
+      context.showError(e);
     }
   }
 
   Future<void> _loadData() async {
-    final movementViewModel = context.read<MovementViewModel>();
-    final productViewModel = context.read<ProductViewModel>();
-    await Future.wait([
-      movementViewModel.loadMovements(),
-      productViewModel.loadProducts(),
-    ]);
+    final organizationViewModel = context.read<OrganizationViewModel>();
+    final organizationId = organizationViewModel.currentOrganization?.id;
+    
+    if (organizationId != null) {
+      final movementViewModel = context.read<MovementViewModel>();
+      final productViewModel = context.read<ProductViewModel>();
+      await Future.wait([
+        movementViewModel.loadMovements(),
+        productViewModel.loadProducts(organizationId),
+      ]);
+    }
   }
 
   List<Movement> _getFilteredMovements(List<Movement> movements) {
@@ -77,6 +82,21 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
     }
   }
 
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays > 0) {
+      return 'Hace ${difference.inDays} día${difference.inDays > 1 ? 's' : ''}';
+    } else if (difference.inHours > 0) {
+      return 'Hace ${difference.inHours} hora${difference.inHours > 1 ? 's' : ''}';
+    } else if (difference.inMinutes > 0) {
+      return 'Hace ${difference.inMinutes} minuto${difference.inMinutes > 1 ? 's' : ''}';
+    } else {
+      return 'Ahora mismo';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -84,8 +104,14 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
         title: const Text('Historial de Movimientos'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadData,
+            tooltip: 'Actualizar',
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _signOut,
+            tooltip: 'Cerrar sesión',
           ),
         ],
       ),
@@ -96,86 +122,129 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
           }
 
           if (movementVM.error.isNotEmpty) {
-            return Center(child: Text('Error: ${movementVM.error}'));
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.red[300],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    movementVM.error,
+                    style: const TextStyle(fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadData,
+                    child: const Text('Reintentar'),
+                  ),
+                ],
+              ),
+            );
           }
 
           final movements = _getFilteredMovements(movementVM.movements);
 
           return Column(
             children: [
-              Container(
-                padding: const EdgeInsets.all(16.0),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+              Card(
+                margin: const EdgeInsets.all(16),
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Column(
-                  children: [
-                    TextField(
-                      decoration: const InputDecoration(
-                        hintText: 'Buscar por nombre de producto...',
-                        prefixIcon: Icon(Icons.search),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Buscar por nombre de producto...',
+                          prefixIcon: const Icon(Icons.search),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value;
+                          });
+                        },
                       ),
-                      onChanged: (value) {
-                        setState(() {
-                          _searchQuery = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SegmentedButton<MovementType?>(
-                            segments: const [
-                              ButtonSegment(
-                                value: null,
-                                label: Text('Todos'),
-                              ),
-                              ButtonSegment(
-                                value: MovementType.entry,
-                                label: Text('Entradas'),
-                                icon: Icon(Icons.add),
-                              ),
-                              ButtonSegment(
-                                value: MovementType.exit,
-                                label: Text('Salidas'),
-                                icon: Icon(Icons.remove),
-                              ),
-                            ],
-                            selected: {_selectedType},
-                            onSelectionChanged: (Set<MovementType?> selected) {
-                              setState(() {
-                                _selectedType = selected.first;
-                              });
-                            },
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SegmentedButton<MovementType?>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: null,
+                                  label: Text('Todos'),
+                                ),
+                                ButtonSegment(
+                                  value: MovementType.entry,
+                                  label: Text('Entradas'),
+                                  icon: Icon(Icons.add),
+                                ),
+                                ButtonSegment(
+                                  value: MovementType.exit,
+                                  label: Text('Salidas'),
+                                  icon: Icon(Icons.remove),
+                                ),
+                              ],
+                              selected: {_selectedType},
+                              onSelectionChanged: (Set<MovementType?> selected) {
+                                setState(() {
+                                  _selectedType = selected.first;
+                                });
+                              },
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        OutlinedButton.icon(
-                          onPressed: _selectDateRange,
-                          icon: const Icon(Icons.date_range),
-                          label: Text(
-                            _startDate != null && _endDate != null
-                                ? '${_startDate!.day}/${_startDate!.month}/${_startDate!.year} - ${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'
-                                : 'Seleccionar rango de fechas',
+                          const SizedBox(width: 16),
+                          OutlinedButton.icon(
+                            onPressed: _selectDateRange,
+                            icon: const Icon(Icons.date_range),
+                            label: Text(
+                              _startDate != null && _endDate != null
+                                  ? '${_startDate!.day}/${_startDate!.month}/${_startDate!.year} - ${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'
+                                  : 'Seleccionar rango de fechas',
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
               Expanded(
                 child: movements.isEmpty
-                    ? const Center(
-                        child: Text('No se encontraron movimientos'),
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.history_outlined,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No se encontraron movimientos',
+                              style: TextStyle(fontSize: 18),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Intenta ajustar los filtros de búsqueda',
+                              style: TextStyle(fontSize: 14),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.all(16),
@@ -183,34 +252,66 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
                         itemBuilder: (context, index) {
                           final movement = movements[index];
                           return Card(
-                            margin: const EdgeInsets.only(bottom: 16),
+                            margin: const EdgeInsets.only(bottom: 12),
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                             child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: movement.type == MovementType.entry
-                                    ? Colors.green[100]
-                                    : Colors.red[100],
+                              contentPadding: const EdgeInsets.all(16),
+                              leading: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: movement.type == MovementType.entry
+                                      ? Colors.green.withOpacity(0.1)
+                                      : Colors.red.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                                 child: Icon(
                                   movement.type == MovementType.entry
-                                      ? Icons.add
-                                      : Icons.remove,
+                                      ? Icons.add_circle_outline
+                                      : Icons.remove_circle_outline,
                                   color: movement.type == MovementType.entry
                                       ? Colors.green
                                       : Colors.red,
+                                  size: 24,
                                 ),
                               ),
                               title: Text(
                                 movement.productName,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                 ),
                               ),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    '${movement.type == MovementType.entry ? "Entrada" : "Salida"} de ${movement.quantity} unidades',
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: movement.type == MovementType.entry
+                                          ? Colors.green.withOpacity(0.1)
+                                          : Colors.red.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      '${movement.type == MovementType.entry ? "Entrada" : "Salida"} de ${movement.quantity} unidades',
+                                      style: TextStyle(
+                                        color: movement.type == MovementType.entry
+                                            ? Colors.green
+                                            : Colors.red,
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 12,
+                                      ),
+                                    ),
                                   ),
-                                  if (movement.note != null)
+                                  if (movement.note != null && movement.note!.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
                                     Text(
                                       movement.note!,
                                       style: TextStyle(
@@ -218,14 +319,26 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
                                         fontSize: 12,
                                       ),
                                     ),
+                                  ],
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.access_time,
+                                        size: 14,
+                                        color: Colors.grey[500],
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _formatDate(movement.date),
+                                        style: TextStyle(
+                                          color: Colors.grey[500],
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ],
-                              ),
-                              trailing: Text(
-                                movement.date.toString().split('.')[0],
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 12,
-                                ),
                               ),
                             ),
                           );

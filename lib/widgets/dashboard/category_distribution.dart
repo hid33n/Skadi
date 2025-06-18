@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/product_viewmodel.dart';
 import '../../viewmodels/category_viewmodel.dart';
+import '../../viewmodels/organization_viewmodel.dart';
 import '../../models/category.dart';
 
 class CategoryDistribution extends StatelessWidget {
@@ -9,8 +10,8 @@ class CategoryDistribution extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<ProductViewModel, CategoryViewModel>(
-      builder: (context, productVM, categoryVM, _) {
+    return Consumer3<ProductViewModel, CategoryViewModel, OrganizationViewModel>(
+      builder: (context, productVM, categoryVM, organizationVM, _) {
         if (productVM.isLoading || categoryVM.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -18,7 +19,7 @@ class CategoryDistribution extends StatelessWidget {
         if (productVM.error != null || categoryVM.error != null) {
           return Center(
             child: Text(
-              'Error: ${productVM.error ?? categoryVM.error}',
+              'Error: ${productVM.error?.message ?? categoryVM.error?.message}',
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           );
@@ -34,6 +35,7 @@ class CategoryDistribution extends StatelessWidget {
                   id: 'default',
                   name: 'Sin categoría',
                   description: '',
+                  organizationId: organizationVM.currentOrganization?.id ?? '',
                   createdAt: DateTime.now(),
                   updatedAt: DateTime.now(),
                 ),

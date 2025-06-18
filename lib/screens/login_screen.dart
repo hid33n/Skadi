@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'dart:math';
 import '../services/auth_service.dart';
+import '../utils/error_handler.dart';
+import '../viewmodels/organization_viewmodel.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +19,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   final _passwordController = TextEditingController();
   final _authService = AuthService();
   bool _isLoading = false;
+  bool _obscurePassword = true;
   late AnimationController _controller;
 
   @override
@@ -36,30 +40,47 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Future<void> _login() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
-      try {
-        await _authService.signInWithEmailOrUsername(
-          _emailController.text.trim(),
-          _passwordController.text.trim(),
-        );
-        if (mounted) {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _authService.signInWithEmailOrUsername(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
+      );
+
+      if (mounted) {
+        // Verificar si el usuario tiene una organización configurada
+        final organizationViewModel = context.read<OrganizationViewModel>();
+        final currentUser = _authService.currentUser;
+        
+        if (currentUser != null) {
+          await organizationViewModel.loadCurrentUser(currentUser.uid);
+          
+          if (organizationViewModel.currentOrganization != null) {
+            // El usuario tiene una organización, navegar a home
+            Navigator.of(context).pushReplacementNamed('/home');
+          } else {
+            // El usuario no tiene organización, navegar a setup
+            Navigator.of(context).pushReplacementNamed('/organization-setup');
+          }
+        } else {
+          // Fallback a home si no se puede verificar
           Navigator.of(context).pushReplacementNamed('/home');
         }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: ${e.toString()}')),
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showError(e);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -128,10 +149,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.inventory_2,
-                        size: 64,
-                        color: Theme.of(context).primaryColor,
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.inventory_2,
+                          size: 64,
+                          color: Theme.of(context).primaryColor,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -141,11 +169,19 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                               color: Colors.blueGrey[900],
                             ),
                       ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Sistema de Gestión de Inventario',
+                        style: TextStyle(
+                          color: Colors.blueGrey[600],
+                          fontSize: 14,
+                        ),
+                      ),
                       const SizedBox(height: 32),
                       TextFormField(
                         controller: _emailController,
                         decoration: InputDecoration(
-                          labelText: 'Email o nombre de usuario',
+                          labelText: 'Email o nombre de usuario *',
                           labelStyle: TextStyle(color: Colors.blueGrey[700]),
                           prefixIcon: Icon(Icons.person_outline, color: Colors.blueGrey[700]),
                           filled: true,
@@ -173,7 +209,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
+                          if (value == null || value.trim().isEmpty) {
                             return 'Por favor ingresa tu email o nombre de usuario';
                           }
                           return null;
@@ -183,9 +219,20 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       TextFormField(
                         controller: _passwordController,
                         decoration: InputDecoration(
-                          labelText: 'Contraseña',
+                          labelText: 'Contraseña *',
                           labelStyle: TextStyle(color: Colors.blueGrey[700]),
                           prefixIcon: Icon(Icons.lock_outline, color: Colors.blueGrey[700]),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                              color: Colors.blueGrey[700],
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
                           filled: true,
                           fillColor: Colors.white,
                           border: OutlineInputBorder(
@@ -210,10 +257,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         ),
-                        obscureText: true,
+                        obscureText: _obscurePassword,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Por favor ingresa tu contraseña';
+                          }
+                          if (value.length < 6) {
+                            return 'La contraseña debe tener al menos 6 caracteres';
                           }
                           return null;
                         },
@@ -221,7 +271,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
-                        child: ElevatedButton(
+                        child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
@@ -229,17 +279,34 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             ),
                           ),
                           onPressed: _isLoading ? null : _login,
-                          child: _isLoading
-                              ? const CircularProgressIndicator()
-                              : const Text('Iniciar Sesión'),
+                          icon: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.login),
+                          label: Text(_isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'),
                         ),
                       ),
                       const SizedBox(height: 16),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pushNamed('/register');
-                        },
-                        child: const Text('¿No tienes cuenta? Regístrate'),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '¿No tienes cuenta? ',
+                            style: TextStyle(color: Colors.blueGrey[600]),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pushNamed('/register');
+                            },
+                            child: const Text(
+                              'Regístrate',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

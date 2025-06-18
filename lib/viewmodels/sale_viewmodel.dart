@@ -2,21 +2,20 @@ import 'package:flutter/foundation.dart';
 import '../models/sale.dart';
 import '../models/sale_item.dart';
 import '../services/firestore_service.dart';
+import '../utils/error_handler.dart';
 import 'package:flutter/material.dart';
 
 class SaleViewModel extends ChangeNotifier {
   final FirestoreService _firestoreService;
   List<Sale> _sales = [];
   bool _isLoading = false;
-  String? _error;
+  AppError? _error;
 
-  SaleViewModel(this._firestoreService) {
-    loadSales();
-  }
+  SaleViewModel(this._firestoreService);
 
   List<Sale> get sales => _sales;
   bool get isLoading => _isLoading;
-  String? get error => _error;
+  AppError? get error => _error;
   double get totalSales => _sales.fold(0, (sum, sale) => sum + sale.amount);
   int get salesCount => _sales.length;
 
@@ -28,14 +27,14 @@ class SaleViewModel extends ChangeNotifier {
     try {
       _sales = await _firestoreService.getSales();
     } catch (e) {
-      _error = e.toString();
+      _error = AppError.fromException(e);
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> addSale(Sale sale) async {
+  Future<bool> addSale(Sale sale) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -43,15 +42,17 @@ class SaleViewModel extends ChangeNotifier {
     try {
       await _firestoreService.addSale(sale);
       await loadSales();
+      return true;
     } catch (e) {
-      _error = e.toString();
+      _error = AppError.fromException(e);
+      return false;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> deleteSale(String id) async {
+  Future<bool> deleteSale(String id) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -59,8 +60,10 @@ class SaleViewModel extends ChangeNotifier {
     try {
       await _firestoreService.deleteSale(id);
       await loadSales();
+      return true;
     } catch (e) {
-      _error = e.toString();
+      _error = AppError.fromException(e);
+      return false;
     } finally {
       _isLoading = false;
       notifyListeners();

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'dart:math';
 import '../services/auth_service.dart';
+import '../viewmodels/organization_viewmodel.dart';
+import '../utils/error_handler.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -18,6 +21,8 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
   final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
   bool _isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   late AnimationController _controller;
 
   @override
@@ -40,37 +45,36 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
   }
 
   Future<void> _register() async {
-    if (_formKey.currentState!.validate()) {
-      if (_passwordController.text != _confirmPasswordController.text) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Las contraseñas no coinciden')),
-        );
-        return;
+    if (!_formKey.currentState!.validate()) return;
+    
+    if (_passwordController.text != _confirmPasswordController.text) {
+      context.showError('Las contraseñas no coinciden');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _authService.registerWithEmailAndPassword(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
+        _nameController.text.trim(),
+      );
+
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/organization-setup');
       }
-      setState(() {
-        _isLoading = true;
-      });
-      try {
-        await _authService.registerWithEmailAndPassword(
-          _emailController.text.trim(),
-          _passwordController.text.trim(),
-          _nameController.text.trim(),
-        );
-        if (mounted) {
-          Navigator.of(context).pushReplacementNamed('/home');
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: ${e.toString()}')),
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
+    } catch (e) {
+      if (mounted) {
+        context.showError(e);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -139,10 +143,17 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.inventory_2,
-                        size: 64,
-                        color: Theme.of(context).primaryColor,
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.person_add,
+                          size: 64,
+                          color: Theme.of(context).primaryColor,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -152,11 +163,19 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                               color: Colors.blueGrey[900],
                             ),
                       ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Crear nueva cuenta',
+                        style: TextStyle(
+                          color: Colors.blueGrey[600],
+                          fontSize: 14,
+                        ),
+                      ),
                       const SizedBox(height: 32),
                       TextFormField(
                         controller: _nameController,
                         decoration: InputDecoration(
-                          labelText: 'Nombre de usuario',
+                          labelText: 'Nombre completo *',
                           labelStyle: TextStyle(color: Colors.blueGrey[700]),
                           prefixIcon: Icon(Icons.person_outline, color: Colors.blueGrey[700]),
                           filled: true,
@@ -184,8 +203,11 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingresa tu nombre de usuario';
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Por favor ingresa tu nombre completo';
+                          }
+                          if (value.trim().length < 2) {
+                            return 'El nombre debe tener al menos 2 caracteres';
                           }
                           return null;
                         },
@@ -194,7 +216,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                       TextFormField(
                         controller: _emailController,
                         decoration: InputDecoration(
-                          labelText: 'Email',
+                          labelText: 'Email *',
                           labelStyle: TextStyle(color: Colors.blueGrey[700]),
                           prefixIcon: Icon(Icons.email_outlined, color: Colors.blueGrey[700]),
                           filled: true,
@@ -223,8 +245,11 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                         ),
                         keyboardType: TextInputType.emailAddress,
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
+                          if (value == null || value.trim().isEmpty) {
                             return 'Por favor ingresa tu email';
+                          }
+                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
+                            return 'Por favor ingresa un email válido';
                           }
                           return null;
                         },
@@ -233,9 +258,20 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                       TextFormField(
                         controller: _passwordController,
                         decoration: InputDecoration(
-                          labelText: 'Contraseña',
+                          labelText: 'Contraseña *',
                           labelStyle: TextStyle(color: Colors.blueGrey[700]),
                           prefixIcon: Icon(Icons.lock_outline, color: Colors.blueGrey[700]),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                              color: Colors.blueGrey[700],
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
                           filled: true,
                           fillColor: Colors.white,
                           border: OutlineInputBorder(
@@ -260,10 +296,13 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                           ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         ),
-                        obscureText: true,
+                        obscureText: _obscurePassword,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Por favor ingresa tu contraseña';
+                          }
+                          if (value.length < 6) {
+                            return 'La contraseña debe tener al menos 6 caracteres';
                           }
                           return null;
                         },
@@ -272,9 +311,20 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                       TextFormField(
                         controller: _confirmPasswordController,
                         decoration: InputDecoration(
-                          labelText: 'Confirmar Contraseña',
+                          labelText: 'Confirmar contraseña *',
                           labelStyle: TextStyle(color: Colors.blueGrey[700]),
                           prefixIcon: Icon(Icons.lock_outline, color: Colors.blueGrey[700]),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                              color: Colors.blueGrey[700],
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscureConfirmPassword = !_obscureConfirmPassword;
+                              });
+                            },
+                          ),
                           filled: true,
                           fillColor: Colors.white,
                           border: OutlineInputBorder(
@@ -299,10 +349,13 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                           ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         ),
-                        obscureText: true,
+                        obscureText: _obscureConfirmPassword,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Por favor confirma tu contraseña';
+                          }
+                          if (value != _passwordController.text) {
+                            return 'Las contraseñas no coinciden';
                           }
                           return null;
                         },
@@ -310,7 +363,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
-                        child: ElevatedButton(
+                        child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
@@ -318,17 +371,34 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                             ),
                           ),
                           onPressed: _isLoading ? null : _register,
-                          child: _isLoading
-                              ? const CircularProgressIndicator()
-                              : const Text('Registrarse'),
+                          icon: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.person_add),
+                          label: Text(_isLoading ? 'Creando cuenta...' : 'Crear Cuenta'),
                         ),
                       ),
                       const SizedBox(height: 16),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pushNamed('/login');
-                        },
-                        child: const Text('¿Ya tienes cuenta? Inicia sesión'),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '¿Ya tienes cuenta? ',
+                            style: TextStyle(color: Colors.blueGrey[600]),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pushNamed('/login');
+                            },
+                            child: const Text(
+                              'Inicia sesión',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

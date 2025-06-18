@@ -5,9 +5,11 @@ import '../models/movement.dart';
 import '../models/category.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/movement_viewmodel.dart';
+import '../viewmodels/category_viewmodel.dart';
+import '../viewmodels/organization_viewmodel.dart';
 import '../services/firestore_service.dart';
+import '../utils/error_handler.dart';
 import 'edit_product_screen.dart';
-import '../widgets/custom_snackbar.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final Product product;
@@ -42,45 +44,63 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Future<void> _loadCategory() async {
-    try {
-      final category = await context.read<FirestoreService>().getCategoryById(widget.product.categoryId);
-      if (mounted) {
-        setState(() {
-          _categoryName = category?.name ?? 'Sin categoría';
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _categoryName = 'Error al cargar categoría';
-        });
+    final organizationViewModel = context.read<OrganizationViewModel>();
+    final organizationId = organizationViewModel.currentOrganization?.id;
+    
+    if (organizationId != null) {
+      try {
+        final categoryViewModel = context.read<CategoryViewModel>();
+        await categoryViewModel.loadCategories(organizationId);
+        
+        final category = categoryViewModel.categories.firstWhere(
+          (c) => c.id == widget.product.categoryId,
+          orElse: () => Category(
+            id: '',
+            name: 'Sin categoría',
+            description: 'Categoría no encontrada',
+            organizationId: organizationId,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        );
+        
+        if (mounted) {
+          setState(() {
+            _categoryName = category.name;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _categoryName = 'Error al cargar categoría';
+          });
+        }
       }
     }
   }
 
   Future<void> _addMovement() async {
     if (_quantityController.text.isEmpty) {
-      CustomSnackBar.showError(
-        context: context,
-        message: 'Por favor ingresa una cantidad',
-      );
+      context.showError('Por favor ingresa una cantidad');
       return;
     }
 
     final quantity = int.tryParse(_quantityController.text);
     if (quantity == null || quantity <= 0) {
-      CustomSnackBar.showError(
-        context: context,
-        message: 'La cantidad debe ser un número positivo',
-      );
+      context.showError('La cantidad debe ser un número positivo');
       return;
     }
 
     if (_selectedType == MovementType.exit && quantity > widget.product.stock) {
-      CustomSnackBar.showError(
-        context: context,
-        message: 'No hay suficiente stock disponible',
-      );
+      context.showError('No hay suficiente stock disponible');
+      return;
+    }
+
+    final organizationViewModel = context.read<OrganizationViewModel>();
+    final organizationId = organizationViewModel.currentOrganization?.id;
+    
+    if (organizationId == null) {
+      context.showError('No se pudo obtener la información de la organización');
       return;
     }
 
@@ -95,25 +115,25 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         type: _selectedType,
         date: DateTime.now(),
         note: _noteController.text.isEmpty ? null : _noteController.text,
+        organizationId: organizationId,
       );
 
       await context.read<MovementViewModel>().addMovement(movement);
-      await context.read<ProductViewModel>().loadProducts();
+      await context.read<ProductViewModel>().loadProducts(organizationId);
 
       if (mounted) {
-        CustomSnackBar.showSuccess(
-          context: context,
-          message: 'Movimiento registrado correctamente',
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Movimiento registrado correctamente'),
+            backgroundColor: Colors.green,
+          ),
         );
         _quantityController.clear();
         _noteController.clear();
       }
     } catch (e) {
       if (mounted) {
-        CustomSnackBar.showError(
-          context: context,
-          message: 'Error al registrar movimiento: $e',
-        );
+        context.showError(e);
       }
     } finally {
       if (mounted) {
@@ -141,6 +161,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               );
               Navigator.pop(context);
             },
+            tooltip: 'Editar producto',
           ),
         ],
       ),
@@ -150,14 +171,30 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Información del Producto',
-                      style: Theme.of(context).textTheme.titleLarge,
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.inventory_2,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Información del Producto',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     _buildInfoRow('Nombre', widget.product.name),
@@ -167,10 +204,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       'Precio',
                       '\$${widget.product.price.toStringAsFixed(2)}',
                     ),
-                    _buildInfoRow(
-                      'Stock Actual',
-                      '${widget.product.stock} unidades',
-                    ),
+                    _buildStockInfo(),
                     _buildInfoRow(
                       'Stock Mínimo',
                       '${widget.product.minStock} unidades',
@@ -185,14 +219,30 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ),
             const SizedBox(height: 24),
             Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Registrar Movimiento',
-                      style: Theme.of(context).textTheme.titleLarge,
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.swap_horiz,
+                          color: Colors.orange,
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Registrar Movimiento',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     SegmentedButton<MovementType>(
@@ -219,7 +269,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     TextField(
                       controller: _quantityController,
                       decoration: const InputDecoration(
-                        labelText: 'Cantidad',
+                        labelText: 'Cantidad *',
                         border: OutlineInputBorder(),
                       ),
                       keyboardType: TextInputType.number,
@@ -236,11 +286,19 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton(
+                      child: ElevatedButton.icon(
                         onPressed: _isLoading ? null : _addMovement,
-                        child: _isLoading
-                            ? const CircularProgressIndicator()
-                            : const Text('Registrar Movimiento'),
+                        icon: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.add),
+                        label: Text(_isLoading ? 'Registrando...' : 'Registrar Movimiento'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
                       ),
                     ),
                   ],
@@ -249,14 +307,30 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ),
             const SizedBox(height: 24),
             Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Últimos Movimientos',
-                      style: Theme.of(context).textTheme.titleLarge,
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.history,
+                          color: Colors.purple,
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Últimos Movimientos',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     Consumer<MovementViewModel>(
@@ -265,10 +339,46 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           return const Center(child: CircularProgressIndicator());
                         }
 
+                        if (movementVM.error != null && movementVM.error!.isNotEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.error_outline,
+                                  size: 48,
+                                  color: Colors.red[300],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  movementVM.error!,
+                                  style: const TextStyle(fontSize: 14),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
                         final movements = movementVM.getMovementsByProduct(widget.product.id);
                         if (movements.isEmpty) {
-                          return const Center(
-                            child: Text('No hay movimientos registrados'),
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.history_outlined,
+                                  size: 48,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'No hay movimientos registrados',
+                                  style: TextStyle(fontSize: 14),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
                           );
                         }
 
@@ -278,30 +388,53 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           itemCount: movements.length,
                           itemBuilder: (context, index) {
                             final movement = movements[index];
-                            return ListTile(
-                              leading: Icon(
-                                movement.type == MovementType.entry
-                                    ? Icons.add_circle_outline
-                                    : Icons.remove_circle_outline,
-                                color: movement.type == MovementType.entry
-                                    ? Colors.green
-                                    : Colors.red,
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              title: Text(
-                                '${movement.type == MovementType.entry ? "Entrada" : "Salida"} de ${movement.quantity} unidades',
-                              ),
-                              subtitle: Text(
-                                movement.note ?? 'Sin nota',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 12,
+                              child: ListTile(
+                                leading: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: movement.type == MovementType.entry
+                                        ? Colors.green.withOpacity(0.1)
+                                        : Colors.red.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    movement.type == MovementType.entry
+                                        ? Icons.add_circle_outline
+                                        : Icons.remove_circle_outline,
+                                    color: movement.type == MovementType.entry
+                                        ? Colors.green
+                                        : Colors.red,
+                                    size: 20,
+                                  ),
                                 ),
-                              ),
-                              trailing: Text(
-                                movement.date.toString().split('.')[0],
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 12,
+                                title: Text(
+                                  '${movement.type == MovementType.entry ? "Entrada" : "Salida"} de ${movement.quantity} unidades',
+                                  style: const TextStyle(fontWeight: FontWeight.w500),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (movement.note != null && movement.note!.isNotEmpty)
+                                      Text(
+                                        movement.note!,
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    Text(
+                                      _formatDate(movement.date),
+                                      style: TextStyle(
+                                        color: Colors.grey[500],
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             );
@@ -321,7 +454,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
+      padding: const EdgeInsets.only(bottom: 12.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -336,10 +469,83 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ),
           ),
           Expanded(
-            child: Text(value),
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 16),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildStockInfo() {
+    Color stockColor;
+    IconData stockIcon;
+    
+    if (widget.product.stock <= 0) {
+      stockColor = Colors.red;
+      stockIcon = Icons.error_outline;
+    } else if (widget.product.stock <= widget.product.minStock) {
+      stockColor = Colors.orange;
+      stockIcon = Icons.warning_outlined;
+    } else {
+      stockColor = Colors.green;
+      stockIcon = Icons.check_circle_outline;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              'Stock Actual',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                Icon(
+                  stockIcon,
+                  color: stockColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${widget.product.stock} unidades',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: stockColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays > 0) {
+      return 'Hace ${difference.inDays} día${difference.inDays > 1 ? 's' : ''}';
+    } else if (difference.inHours > 0) {
+      return 'Hace ${difference.inHours} hora${difference.inHours > 1 ? 's' : ''}';
+    } else if (difference.inMinutes > 0) {
+      return 'Hace ${difference.inMinutes} minuto${difference.inMinutes > 1 ? 's' : ''}';
+    } else {
+      return 'Ahora mismo';
+    }
   }
 } 

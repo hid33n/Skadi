@@ -15,8 +15,25 @@ class RecentActivity extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (saleVM.error != null && saleVM.error!.isNotEmpty) {
-          return Center(child: Text('Error: ${saleVM.error}'));
+        if (saleVM.error != null) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 32,
+                  color: Colors.red[300],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  saleVM.error!.message,
+                  style: const TextStyle(fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
         }
 
         final recentSales = saleVM.sales.take(5).toList();
