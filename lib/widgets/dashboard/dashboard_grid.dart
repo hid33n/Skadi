@@ -1,49 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../viewmodels/dashboard_viewmodel.dart';
 import '../../viewmodels/product_viewmodel.dart';
 import '../../viewmodels/category_viewmodel.dart';
+import '../../viewmodels/sale_viewmodel.dart';
 import '../../screens/home_screen.dart';
 import '../../screens/add_sale_screen.dart';
+import '../../screens/add_product_screen.dart';
+import '../../screens/product_list_screen.dart';
+import '../../screens/sales_screen.dart';
+import '../../models/product.dart';
+import '../../models/sale.dart';
+import '../../models/category.dart';
+import '../../widgets/custom_snackbar.dart';
 import 'dashboard_card.dart';
 import 'sales_chart.dart';
 import 'category_distribution.dart';
 import 'stock_trends.dart';
 import 'quick_actions.dart';
-
-// Utilidad para detectar el tipo de pantalla
-enum ScreenType { mobile, tablet, web }
-
-ScreenType getScreenType(BuildContext context) {
-  final width = MediaQuery.of(context).size.width;
-  if (width <= 400) {
-    return ScreenType.mobile;
-  } else if (width <= 800) {
-    return ScreenType.tablet;
-  } else {
-    return ScreenType.web;
-  }
-}
+import 'recent_activity.dart';
+import 'stock_status.dart';
 
 class DashboardGrid extends StatelessWidget {
   const DashboardGrid({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 600;
-    final isTablet = MediaQuery.of(context).size.width >= 600 && MediaQuery.of(context).size.width < 1200;
-
-    if (isMobile) {
-      return _buildMobileLayout(context);
-    } else if (isTablet) {
-      return _buildTabletLayout(context);
-    } else {
-      return _buildDesktopLayout(context);
-    }
-  }
-
-  Widget _buildMobileLayout(BuildContext context) {
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -56,97 +39,15 @@ class DashboardGrid extends StatelessWidget {
             const SizedBox(height: 16),
             _buildSalesChart(context),
             const SizedBox(height: 16),
+            _buildLowStockProducts(context),
+            const SizedBox(height: 16),
+            _buildTopSellingProducts(context),
+            const SizedBox(height: 16),
             _buildCategoryDistribution(context),
             const SizedBox(height: 16),
             _buildStockTrends(context),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabletLayout(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: _buildSalesSummary(context),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  flex: 1,
-                  child: _buildQuickActions(context),
-                ),
-              ],
-            ),
             const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _buildSalesChart(context),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildCategoryDistribution(context),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildStockTrends(context),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDesktopLayout(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: _buildSalesSummary(context),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  flex: 1,
-                  child: _buildQuickActions(context),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: _buildSalesChart(context),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  flex: 1,
-                  child: Column(
-                    children: [
-                      _buildCategoryDistribution(context),
-                      const SizedBox(height: 16),
-                      _buildStockTrends(context),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            _buildRecentActivity(context),
           ],
         ),
       ),
@@ -154,11 +55,27 @@ class DashboardGrid extends StatelessWidget {
   }
 
   Widget _buildSalesSummary(BuildContext context) {
-    return Consumer<DashboardViewModel>(
-      builder: (context, viewModel, _) {
-        if (viewModel.isLoading) {
-          return const Center(child: CircularProgressIndicator());
+    return Consumer<SaleViewModel>(
+      builder: (context, saleVM, _) {
+        if (saleVM.isLoading) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
         }
+
+        final todaySales = _calculateTodaySales(saleVM.sales);
+        final weekSales = _calculateWeekSales(saleVM.sales);
+        final totalSales = saleVM.totalSales;
+
+        final currencyFormat = NumberFormat.currency(
+          locale: 'es_MX',
+          symbol: '\$',
+          decimalDigits: 2,
+        );
+
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -176,31 +93,73 @@ class DashboardGrid extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildSalesMetric(
-                      context,
-                      'Hoy',
-                      viewModel.todaySales,
-                      Icons.today,
-                      Colors.blue,
-                    ),
-                    _buildSalesMetric(
-                      context,
-                      'Semana',
-                      viewModel.weekSales,
-                      Icons.calendar_view_week,
-                      Colors.orange,
-                    ),
-                    _buildSalesMetric(
-                      context,
-                      'Mes',
-                      viewModel.monthSales,
-                      Icons.calendar_month,
-                      Colors.green,
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth < 600) {
+                      // Layout móvil - columnas apiladas
+                      return Column(
+                        children: [
+                          _buildSalesMetric(
+                            context,
+                            'Hoy',
+                            todaySales,
+                            Icons.today,
+                            Colors.blue,
+                            currencyFormat,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildSalesMetric(
+                            context,
+                            'Semana',
+                            weekSales,
+                            Icons.calendar_view_week,
+                            Colors.orange,
+                            currencyFormat,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildSalesMetric(
+                            context,
+                            'Total',
+                            totalSales,
+                            Icons.calendar_month,
+                            Colors.green,
+                            currencyFormat,
+                          ),
+                        ],
+                      );
+                    } else {
+                      // Layout desktop/tablet - filas
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildSalesMetric(
+                            context,
+                            'Hoy',
+                            todaySales,
+                            Icons.today,
+                            Colors.blue,
+                            currencyFormat,
+                          ),
+                          _buildSalesMetric(
+                            context,
+                            'Semana',
+                            weekSales,
+                            Icons.calendar_view_week,
+                            Colors.orange,
+                            currencyFormat,
+                          ),
+                          _buildSalesMetric(
+                            context,
+                            'Total',
+                            totalSales,
+                            Icons.calendar_month,
+                            Colors.green,
+                            currencyFormat,
+                          ),
+                        ],
+                      );
+                    }
+                  },
                 ),
               ],
             ),
@@ -210,19 +169,40 @@ class DashboardGrid extends StatelessWidget {
     );
   }
 
+  double _calculateTodaySales(List<Sale> sales) {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    return sales
+        .where((sale) => sale.date.isAfter(startOfDay) && sale.date.isBefore(endOfDay))
+        .fold(0.0, (sum, sale) => sum + sale.amount);
+  }
+
+  double _calculateWeekSales(List<Sale> sales) {
+    final now = DateTime.now();
+    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    final startOfWeekDay = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
+
+    return sales
+        .where((sale) => sale.date.isAfter(startOfWeekDay))
+        .fold(0.0, (sum, sale) => sum + sale.amount);
+  }
+
   Widget _buildSalesMetric(
     BuildContext context,
     String label,
     double value,
     IconData icon,
     Color color,
+    NumberFormat currencyFormat,
   ) {
     return Column(
       children: [
         Icon(icon, color: color),
         const SizedBox(height: 8),
         Text(
-          '\$${value.toStringAsFixed(2)}',
+          currencyFormat.format(value),
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: color,
                 fontWeight: FontWeight.bold,
@@ -264,7 +244,7 @@ class DashboardGrid extends StatelessWidget {
                   icon: Icons.shopping_cart,
                   color: Colors.green,
                   onTap: () {
-                    Navigator.pushReplacement(
+                    Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => const AddSaleScreen(),
@@ -278,19 +258,40 @@ class DashboardGrid extends StatelessWidget {
                   icon: Icons.add_box,
                   color: Colors.blue,
                   onTap: () {
-                    Navigator.pushNamed(context, '/add-product');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AddProductScreen(),
+                      ),
+                    );
                   },
                 ),
                 QuickAction(
-                  title: 'Nueva Categoría',
-                  subtitle: 'Crear una nueva categoría',
-                  icon: Icons.category,
+                  title: 'Ver Inventario',
+                  subtitle: 'Revisar el estado del inventario',
+                  icon: Icons.inventory,
                   color: Colors.deepOrange,
                   onTap: () {
-                    final provider = HomeScreenProvider.of(context);
-                    if (provider != null) {
-                      provider.navigateToIndex(2); // Índice de la pantalla de categorías
-                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProductListScreen(),
+                      ),
+                    );
+                  },
+                ),
+                QuickAction(
+                  title: 'Historial Ventas',
+                  subtitle: 'Ver todas las ventas',
+                  icon: Icons.history,
+                  color: Colors.purple,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SalesScreen(),
+                      ),
+                    );
                   },
                 ),
               ],
@@ -327,6 +328,245 @@ class DashboardGrid extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildLowStockProducts(BuildContext context) {
+    return Consumer<ProductViewModel>(
+      builder: (context, productVM, _) {
+        if (productVM.isLoading) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
+
+        final lowStockProducts = productVM.products.where((product) => product.stock <= 10).toList();
+
+        if (lowStockProducts.isEmpty) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(
+                child: Text(
+                  'No hay productos con stock bajo',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
+            ),
+          );
+        }
+
+        final currencyFormat = NumberFormat.currency(
+          locale: 'es_MX',
+          symbol: '\$',
+          decimalDigits: 2,
+        );
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Productos con Stock Bajo',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    Icon(Icons.warning, color: Colors.red),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 200,
+                  child: ListView.builder(
+                    itemCount: lowStockProducts.length,
+                    itemBuilder: (context, index) {
+                      final product = lowStockProducts[index];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.red.shade100,
+                          child: Text(
+                            product.name[0].toUpperCase(),
+                            style: TextStyle(
+                              color: Colors.red.shade900,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          product.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Stock: ${product.stock}',
+                          style: TextStyle(
+                            color: product.stock <= 5 ? Colors.red : Colors.orange,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12,
+                          ),
+                        ),
+                        trailing: Text(
+                          currencyFormat.format(product.price),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTopSellingProducts(BuildContext context) {
+    return Consumer2<SaleViewModel, ProductViewModel>(
+      builder: (context, saleVM, productVM, _) {
+        if (saleVM.isLoading || productVM.isLoading) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
+
+        final topProducts = _getTopSellingProducts(saleVM.sales, productVM.products);
+
+        if (topProducts.isEmpty) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(
+                child: Text(
+                  'No hay datos de ventas disponibles',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
+            ),
+          );
+        }
+
+        final currencyFormat = NumberFormat.currency(
+          locale: 'es_MX',
+          symbol: '\$',
+          decimalDigits: 2,
+        );
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Productos Más Vendidos',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    Icon(Icons.trending_up, color: Colors.green),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 200,
+                  child: ListView.builder(
+                    itemCount: topProducts.length,
+                    itemBuilder: (context, index) {
+                      final product = topProducts[index];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.blue.shade100,
+                          child: Text(
+                            product.name[0].toUpperCase(),
+                            style: TextStyle(
+                              color: Colors.blue.shade900,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          product.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Stock: ${product.stock}',
+                          style: TextStyle(
+                            color: product.stock <= 10 ? Colors.red : Colors.green,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12,
+                          ),
+                        ),
+                        trailing: Text(
+                          currencyFormat.format(product.price),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<Product> _getTopSellingProducts(List<Sale> sales, List<Product> products) {
+    final Map<String, int> productSalesCount = {};
+    
+    for (var sale in sales) {
+      productSalesCount[sale.productId] = (productSalesCount[sale.productId] ?? 0) + 1;
+    }
+
+    final sortedProductIds = productSalesCount.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final topProducts = <Product>[];
+    for (var entry in sortedProductIds.take(5)) {
+      final product = products.firstWhere(
+        (p) => p.id == entry.key,
+        orElse: () => Product(
+          id: entry.key,
+          name: 'Producto no encontrado',
+          description: '',
+          price: 0.0,
+          stock: 0,
+          minStock: 0,
+          maxStock: 100,
+          categoryId: '',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+      topProducts.add(product);
+    }
+
+    return topProducts;
   }
 
   Widget _buildCategoryDistribution(BuildContext context) {
@@ -378,6 +618,34 @@ class DashboardGrid extends StatelessWidget {
             const SizedBox(
               height: 200,
               child: StockTrends(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentActivity(BuildContext context) {
+    return const Card(
+      child: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Actividad Reciente',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                Icon(Icons.history, color: Colors.blue),
+              ],
+            ),
+            SizedBox(height: 16),
+            SizedBox(
+              height: 200,
+              child: RecentActivity(),
             ),
           ],
         ),
