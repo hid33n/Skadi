@@ -224,6 +224,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           ],
                         ),
                       );
+                    if (productVM.error != null && productVM.errorMessage != null) {
+                      return Center(child: Text('Error: ${productVM.errorMessage}'));
                     }
 
                     if (_filteredProducts.isEmpty) {

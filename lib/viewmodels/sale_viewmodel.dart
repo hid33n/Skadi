@@ -3,6 +3,7 @@ import '../models/sale.dart';
 import '../models/sale_item.dart';
 import '../services/firestore_service.dart';
 import '../utils/error_handler.dart';
+import '../utils/error_handler.dart';
 import 'package:flutter/material.dart';
 
 class SaleViewModel extends ChangeNotifier {
@@ -135,6 +136,14 @@ class SaleViewModel extends ChangeNotifier {
       );
     }).toList();
   }
+
+  void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
+  bool get hasError => _error != null;
+  bool get hasSales => _sales.isNotEmpty;
 }
 
 class SalesDataPoint {

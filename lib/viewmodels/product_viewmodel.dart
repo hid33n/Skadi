@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../services/product_service.dart';
 import '../utils/error_handler.dart';
+import '../services/firestore_service.dart';
+import '../utils/error_handler.dart';
 
 class ProductViewModel extends ChangeNotifier {
   final ProductService _productService = ProductService();
@@ -12,10 +14,11 @@ class ProductViewModel extends ChangeNotifier {
   bool _isLoading = false;
   AppError? _error;
 
-  // Getters
+  ProductViewModel(this._firestoreService) {
+    loadProducts();
+  }
+
   List<Product> get products => _products;
-  Product? get selectedProduct => _selectedProduct;
-  Map<String, dynamic> get productStats => _productStats;
   bool get isLoading => _isLoading;
   AppError? get error => _error;
 

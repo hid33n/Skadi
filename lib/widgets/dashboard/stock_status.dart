@@ -33,6 +33,8 @@ class StockStatus extends StatelessWidget {
               ],
             ),
           );
+        if (productVM.error != null && productVM.errorMessage != null) {
+          return Center(child: Text('Error: ${productVM.errorMessage}'));
         }
 
         final totalProducts = productVM.products.length;

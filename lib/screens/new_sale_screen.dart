@@ -223,6 +223,8 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                         ],
                       ),
                     );
+                  if (productVM.error != null && productVM.errorMessage != null) {
+                    return Center(child: Text('Error: ${productVM.errorMessage}'));
                   }
 
                   final filteredProducts = productVM.products.where((product) {

@@ -34,6 +34,8 @@ class RecentActivity extends StatelessWidget {
               ],
             ),
           );
+        if (saleVM.error != null && saleVM.errorMessage != null) {
+          return Center(child: Text('Error: ${saleVM.errorMessage}'));
         }
 
         final recentSales = saleVM.sales.take(5).toList();

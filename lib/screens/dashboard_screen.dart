@@ -5,6 +5,9 @@ import '../widgets/dashboard/dashboard_grid.dart';
 import '../theme/responsive.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
+import '../viewmodels/product_viewmodel.dart';
+import '../viewmodels/sale_viewmodel.dart';
+import '../viewmodels/category_viewmodel.dart';
 
 class DashboardScreen extends StatefulWidget {
   final bool showAppBar;
@@ -27,6 +30,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Cargar datos del dashboard al iniciar
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DashboardViewModel>().loadDashboardData();
+      context.read<ProductViewModel>().loadProducts();
+      context.read<SaleViewModel>().loadSales();
+      context.read<CategoryViewModel>().loadCategories();
     });
   }
 
