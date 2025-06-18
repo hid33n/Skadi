@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/product.dart';
-import '../services/user_data_service.dart';
+import '../services/sync_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
 class ProductViewModel extends ChangeNotifier {
-  final UserDataService _userDataService = UserDataService();
+  final SyncService _syncService = SyncService();
   final AuthService _authService = AuthService();
   
   List<Product> _products = [];
@@ -30,7 +30,8 @@ class ProductViewModel extends ChangeNotifier {
         return;
       }
 
-      _products = await _userDataService.getProducts(currentUser.uid, organizationId);
+      // Usar SyncService que maneja cache local y sincronización
+      _products = await _syncService.getProducts(organizationId);
       await _loadProductStats();
     } catch (e) {
       _setError(e.toString());
@@ -65,7 +66,8 @@ class ProductViewModel extends ChangeNotifier {
         return false;
       }
 
-      final productId = await _userDataService.addProduct(currentUser.uid, product);
+      // Usar SyncService que maneja cache local y sincronización
+      final productId = await _syncService.createProduct(product);
       if (productId.isNotEmpty) {
         // Recargar productos
         await loadProducts(product.organizationId);
@@ -92,7 +94,8 @@ class ProductViewModel extends ChangeNotifier {
         return false;
       }
 
-      await _userDataService.updateProduct(currentUser.uid, product.id, product);
+      // Usar SyncService que maneja cache local y sincronización
+      await _syncService.updateProduct(product);
       // Recargar productos
       await loadProducts(product.organizationId);
       return true;
@@ -116,7 +119,8 @@ class ProductViewModel extends ChangeNotifier {
         return false;
       }
 
-      await _userDataService.deleteProduct(currentUser.uid, id);
+      // Usar SyncService que maneja cache local y sincronización
+      await _syncService.deleteProduct(id);
       // Recargar productos
       await loadProducts(organizationId);
       return true;
@@ -142,7 +146,9 @@ class ProductViewModel extends ChangeNotifier {
 
       final product = _products.firstWhere((p) => p.id == id);
       final updatedProduct = product.copyWith(stock: newStock);
-      await _userDataService.updateProduct(currentUser.uid, id, updatedProduct);
+      
+      // Usar SyncService que maneja cache local y sincronización
+      await _syncService.updateProduct(updatedProduct);
       // Recargar productos
       await loadProducts(organizationId);
       return true;

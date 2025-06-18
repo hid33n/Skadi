@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../models/category.dart';
-import '../services/category_service.dart';
+import '../services/sync_service.dart';
 import '../utils/error_handler.dart';
 
 class CategoryViewModel extends ChangeNotifier {
-  final CategoryService _categoryService = CategoryService();
+  final SyncService _syncService = SyncService();
   
   List<Category> _categories = [];
   Category? _selectedCategory;
@@ -25,7 +25,8 @@ class CategoryViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      _categories = await _categoryService.getCategories(organizationId);
+      // Usar SyncService que maneja cache local y sincronización
+      _categories = await _syncService.getCategories(organizationId);
       await _loadCategoryStats(organizationId);
     } catch (e) {
       _setError(AppError.fromException(e));
@@ -40,7 +41,7 @@ class CategoryViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      _selectedCategory = await _categoryService.getCategoryById(categoryId, organizationId);
+      _selectedCategory = _categories.firstWhere((category) => category.id == categoryId);
     } catch (e) {
       _setError(AppError.fromException(e));
     } finally {
@@ -54,7 +55,8 @@ class CategoryViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      final categoryId = await _categoryService.addCategory(category);
+      // Usar SyncService que maneja cache local y sincronización
+      final categoryId = await _syncService.createCategory(category);
       if (categoryId.isNotEmpty) {
         // Recargar categorías
         await loadCategories(category.organizationId);
@@ -75,7 +77,8 @@ class CategoryViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      await _categoryService.updateCategory(category.id, category);
+      // Usar SyncService que maneja cache local y sincronización
+      await _syncService.updateCategory(category);
       // Recargar categorías
       await loadCategories(category.organizationId);
       return true;
@@ -93,7 +96,8 @@ class CategoryViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      await _categoryService.deleteCategory(id, organizationId);
+      // Usar SyncService que maneja cache local y sincronización
+      await _syncService.deleteCategory(id);
       // Recargar categorías
       await loadCategories(organizationId);
       return true;
@@ -108,7 +112,7 @@ class CategoryViewModel extends ChangeNotifier {
   /// Buscar categorías
   Future<List<Category>> searchCategories(String query, String organizationId) async {
     try {
-      return await _categoryService.searchCategories(query, organizationId);
+      return searchCategoriesLocal(query);
     } catch (e) {
       _setError(AppError.fromException(e));
       return [];
@@ -118,7 +122,13 @@ class CategoryViewModel extends ChangeNotifier {
   /// Cargar estadísticas de categorías
   Future<void> _loadCategoryStats(String organizationId) async {
     try {
-      _categoryStats = await _categoryService.getCategoryStats(organizationId);
+      // Calcular estadísticas locales
+      _categoryStats = {
+        'totalCategories': _categories.length,
+        'categoryDistribution': getProductCountByCategory(),
+        'emptyCategories': getEmptyCategories().length,
+        'categoriesWithProducts': getCategoriesWithProducts().length,
+      };
     } catch (e) {
       _setError(AppError.fromException(e));
     }

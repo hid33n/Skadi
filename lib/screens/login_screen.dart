@@ -58,7 +58,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         final currentUser = _authService.currentUser;
         
         if (currentUser != null) {
-          await organizationViewModel.loadCurrentUser(currentUser.uid);
+          await organizationViewModel.loadUserAndOrganization(currentUser.uid);
           
           if (organizationViewModel.currentOrganization != null) {
             // El usuario tiene una organización, navegar a home

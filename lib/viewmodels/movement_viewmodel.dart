@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/movement.dart';
-import '../services/user_data_service.dart';
+import '../services/sync_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
 class MovementViewModel extends ChangeNotifier {
-  final UserDataService _userDataService = UserDataService();
+  final SyncService _syncService = SyncService();
   final AuthService _authService = AuthService();
   
   List<Movement> _movements = [];
@@ -28,7 +28,8 @@ class MovementViewModel extends ChangeNotifier {
         return;
       }
 
-      _movements = await _userDataService.getMovements(currentUser.uid, organizationId);
+      // Usar SyncService que maneja cache local y sincronización
+      _movements = await _syncService.getMovements(organizationId);
     } catch (e) {
       _setError(e.toString());
     } finally {
@@ -48,7 +49,8 @@ class MovementViewModel extends ChangeNotifier {
         return false;
       }
 
-      final movementId = await _userDataService.addMovement(currentUser.uid, movement);
+      // Usar SyncService que maneja cache local y sincronización
+      final movementId = await _syncService.createMovement(movement);
       if (movementId.isNotEmpty) {
         // Recargar movimientos
         await loadMovements(movement.organizationId);
@@ -75,7 +77,8 @@ class MovementViewModel extends ChangeNotifier {
         return false;
       }
 
-      await _userDataService.updateMovement(currentUser.uid, movement.id, movement);
+      // Usar SyncService que maneja cache local y sincronización
+      await _syncService.updateMovement(movement);
       // Recargar movimientos
       await loadMovements(movement.organizationId);
       return true;
@@ -99,7 +102,8 @@ class MovementViewModel extends ChangeNotifier {
         return false;
       }
 
-      await _userDataService.deleteMovement(currentUser.uid, id);
+      // Usar SyncService que maneja cache local y sincronización
+      await _syncService.deleteMovement(id);
       // Recargar movimientos
       await loadMovements(organizationId);
       return true;

@@ -146,6 +146,18 @@ class AuthService {
     }
   }
 
+  // Actualizar organización del usuario
+  Future<void> updateUserOrganization(String organizationId) async {
+    try {
+      await _firestore.collection('users').doc(currentUser!.uid).update({
+        'organizationId': organizationId,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   // Obtener perfil de usuario
   Future<DocumentSnapshot> getUserProfile() async {
     try {

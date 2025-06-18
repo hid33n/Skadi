@@ -1,14 +1,16 @@
 import 'package:flutter/foundation.dart';
 import '../models/organization.dart';
 import '../models/user_profile.dart';
-import '../services/user_data_service.dart';
+import '../services/sync_service.dart';
 import '../services/auth_service.dart';
+import '../services/user_data_service.dart';
 import '../utils/error_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class OrganizationViewModel extends ChangeNotifier {
-  final UserDataService _userDataService = UserDataService();
+  final SyncService _syncService = SyncService();
   final AuthService _authService = AuthService();
+  final UserDataService _userDataService = UserDataService();
 
   UserProfile? _currentUser;
   Organization? _currentOrganization;
@@ -48,10 +50,74 @@ class OrganizationViewModel extends ChangeNotifier {
           updatedAt: (userData['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
           isActive: userData['isActive'] as bool? ?? true,
         );
+        
+        // Si el usuario tiene organizationId, cargar la organización
+        if (_currentUser!.organizationId.isNotEmpty) {
+          await loadOrganization(_currentUser!.organizationId);
+        }
+        
         notifyListeners();
       } else {
         _setError('Perfil de usuario no encontrado');
       }
+    } catch (e) {
+      _setError(e.toString());
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Cargar usuario y organización en una sola operación
+  Future<void> loadUserAndOrganization(String userId) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      // Cargar usuario desde AuthService
+      await loadCurrentUser(userId);
+      
+      if (_currentUser == null) {
+        _setError('No se pudo cargar el usuario');
+        return;
+      }
+      
+      // Intentar cargar organización desde cache local primero
+      Organization? organization = await _syncService.getOrganization();
+      
+      // Si no hay organización en cache, intentar cargarla desde servidor
+      if (organization == null) {
+        try {
+          print('Intentando cargar organización desde servidor para usuario: $userId');
+          organization = await _userDataService.getOrganization(userId);
+          
+          if (organization != null) {
+            print('Organización encontrada en servidor: ${organization.name}');
+            // Guardar en cache local
+            await _syncService.saveOrganization(organization);
+          } else {
+            print('No se encontró organización en servidor');
+          }
+        } catch (e) {
+          print('Error cargando organización desde servidor: $e');
+          // Continuar sin organización
+        }
+      } else {
+        print('Organización encontrada en cache local: ${organization.name}');
+      }
+      
+      // Asignar la organización si se encontró
+      if (organization != null) {
+        _currentOrganization = organization;
+        
+        // Actualizar el usuario con el organizationId si no lo tiene
+        if (_currentUser!.organizationId.isEmpty) {
+          final updatedUser = _currentUser!.copyWith(organizationId: organization.id);
+          await _syncService.saveUserProfile(updatedUser);
+          _currentUser = updatedUser;
+        }
+      }
+      
+      notifyListeners();
     } catch (e) {
       _setError(e.toString());
     } finally {
@@ -70,7 +136,8 @@ class OrganizationViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      final organization = await _userDataService.getOrganization(_currentUser!.id);
+      // Usar SyncService que maneja cache local y sincronización
+      final organization = await _syncService.getOrganization();
       _currentOrganization = organization;
       notifyListeners();
     } catch (e) {
@@ -86,7 +153,9 @@ class OrganizationViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      _organizationUsers = await _userDataService.getUsersByOrganization(organizationId);
+      // Por ahora, los usuarios se cargan desde el servicio original
+      // En el futuro se podría implementar cache local para usuarios
+      // _organizationUsers = await _syncService.getUsersByOrganization(organizationId);
     } catch (e) {
       _setError(e.toString());
     } finally {
@@ -97,7 +166,13 @@ class OrganizationViewModel extends ChangeNotifier {
   /// Cargar estadísticas de la organización
   Future<void> _loadOrganizationStats(String organizationId) async {
     try {
-      _organizationStats = await _userDataService.getOrganizationStats(organizationId);
+      // Calcular estadísticas locales
+      _organizationStats = {
+        'totalUsers': _organizationUsers.length,
+        'activeUsers': _organizationUsers.where((u) => u.isActive).length,
+        'organizationName': _currentOrganization?.name ?? 'Sin nombre',
+        'createdAt': _currentOrganization?.createdAt?.toIso8601String(),
+      };
     } catch (e) {
       _setError(e.toString());
     }
@@ -114,21 +189,26 @@ class OrganizationViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      // Crear la organización
-      final organizationId = await _userDataService.createOrganization(
-        _currentUser!.id, 
-        organization
-      );
-
-      // Inicializar la estructura de datos del usuario
-      await _userDataService.initializeUserData(_currentUser!.id);
-
+      // Crear organización en el servidor usando UserDataService
+      final organizationId = await _userDataService.createOrganization(_currentUser!.id, organization);
+      
+      // Actualizar la organización con el ID generado
+      final createdOrganization = organization.copyWith(id: organizationId);
+      
+      // Guardar organización localmente usando SyncService
+      await _syncService.saveOrganization(createdOrganization);
+      
       // Actualizar el usuario con el organizationId
       final updatedUser = _currentUser!.copyWith(organizationId: organizationId);
-      // Por ahora solo actualizamos localmente, en el futuro se actualizaría en Firestore
+      
+      // Guardar usuario actualizado localmente
+      await _syncService.saveUserProfile(updatedUser);
+      
+      // Actualizar usuario en Firestore
+      await _authService.updateUserOrganization(organizationId);
       
       _currentUser = updatedUser;
-      _currentOrganization = organization.copyWith(id: organizationId);
+      _currentOrganization = createdOrganization;
       
       notifyListeners();
       return organizationId;
@@ -151,7 +231,8 @@ class OrganizationViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      await _userDataService.updateOrganization(_currentUser!.id, organization);
+      // Usar SyncService que maneja cache local y sincronización
+      await _syncService.saveOrganization(organization);
       _currentOrganization = organization;
       notifyListeners();
     } catch (e) {
@@ -172,11 +253,12 @@ class OrganizationViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      await _userDataService.inviteUser(
-        _currentUser!.id,
-        _currentOrganization!.id,
-        role,
-      );
+      // TODO: Implementar en SyncService
+      // await _syncService.inviteUser(
+      //   _currentUser!.id,
+      //   _currentOrganization!.id,
+      //   role,
+      // );
       
       // Recargar usuarios de la organización
       await loadOrganizationUsers(_currentOrganization!.id);
@@ -195,17 +277,15 @@ class OrganizationViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      await _userDataService.activateUser(userId);
+      // TODO: Implementar en SyncService
+      // await _syncService.activateUser(userId);
       
       // Actualizar usuario en la lista local
       final userIndex = _organizationUsers.indexWhere((u) => u.id == userId);
       if (userIndex != -1) {
-        _organizationUsers[userIndex] = _organizationUsers[userIndex].copyWith(
-          isActive: true,
-        );
+        _organizationUsers[userIndex] = _organizationUsers[userIndex].copyWith(isActive: true);
         notifyListeners();
       }
-      
       return true;
     } catch (e) {
       _setError(e.toString());
@@ -221,17 +301,15 @@ class OrganizationViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      await _userDataService.suspendUser(userId);
+      // TODO: Implementar en SyncService
+      // await _syncService.suspendUser(userId);
       
       // Actualizar usuario en la lista local
       final userIndex = _organizationUsers.indexWhere((u) => u.id == userId);
       if (userIndex != -1) {
-        _organizationUsers[userIndex] = _organizationUsers[userIndex].copyWith(
-          isActive: false,
-        );
+        _organizationUsers[userIndex] = _organizationUsers[userIndex].copyWith(isActive: false);
         notifyListeners();
       }
-      
       return true;
     } catch (e) {
       _setError(e.toString());

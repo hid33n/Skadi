@@ -1,13 +1,13 @@
 import 'package:flutter/foundation.dart';
 import '../models/sale.dart';
 import '../models/sale_item.dart';
-import '../services/sale_service.dart';
+import '../services/sync_service.dart';
 import '../utils/error_handler.dart';
 import '../utils/error_handler.dart';
 import 'package:flutter/material.dart';
 
 class SaleViewModel extends ChangeNotifier {
-  final SaleService _saleService = SaleService();
+  final SyncService _syncService = SyncService();
   List<Sale> _sales = [];
   bool _isLoading = false;
   AppError? _error;
@@ -24,7 +24,7 @@ class SaleViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _sales = await _saleService.getSales(organizationId);
+      _sales = await _syncService.getSales(organizationId);
     } catch (e) {
       _error = AppError.fromException(e);
     } finally {
@@ -39,7 +39,25 @@ class SaleViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _saleService.addSale(sale);
+      await _syncService.createSale(sale);
+      await loadSales(sale.organizationId);
+      return true;
+    } catch (e) {
+      _error = AppError.fromException(e);
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> updateSale(Sale sale) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await _syncService.updateSale(sale);
       await loadSales(sale.organizationId);
       return true;
     } catch (e) {
@@ -57,7 +75,7 @@ class SaleViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _saleService.deleteSale(id, organizationId);
+      await _syncService.deleteSale(id);
       await loadSales(organizationId);
       return true;
     } catch (e) {
