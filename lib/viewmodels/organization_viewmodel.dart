@@ -1,55 +1,80 @@
 import 'package:flutter/foundation.dart';
 import '../models/organization.dart';
 import '../models/user_profile.dart';
-import '../services/organization_service.dart';
-import '../services/user_service.dart';
+import '../services/user_data_service.dart';
+import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class OrganizationViewModel extends ChangeNotifier {
-  final OrganizationService _organizationService = OrganizationService();
-  final UserService _userService = UserService();
+  final UserDataService _userDataService = UserDataService();
+  final AuthService _authService = AuthService();
 
-  Organization? _currentOrganization;
   UserProfile? _currentUser;
+  Organization? _currentOrganization;
   List<UserProfile> _organizationUsers = [];
   Map<String, dynamic> _organizationStats = {};
   bool _isLoading = false;
-  AppError? _error;
+  String? _error;
 
   // Getters
-  Organization? get currentOrganization => _currentOrganization;
   UserProfile? get currentUser => _currentUser;
+  Organization? get currentOrganization => _currentOrganization;
   List<UserProfile> get organizationUsers => _organizationUsers;
   Map<String, dynamic> get organizationStats => _organizationStats;
   bool get isLoading => _isLoading;
-  AppError? get error => _error;
+  String? get error => _error;
 
-  /// Cargar organización actual
-  Future<void> loadOrganization(String organizationId) async {
-    _setLoading(true);
-    _clearError();
-
-    try {
-      _currentOrganization = await _organizationService.getOrganization(organizationId);
-      if (_currentOrganization != null) {
-        await _loadOrganizationStats(organizationId);
-      }
-    } catch (e) {
-      _setError(AppError.fromException(e));
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  /// Cargar usuario actual
+  /// Cargar el usuario actual
   Future<void> loadCurrentUser(String userId) async {
     _setLoading(true);
     _clearError();
 
     try {
-      _currentUser = await _userService.getUser(userId);
+      // Obtener el perfil del usuario desde AuthService
+      final userDoc = await _authService.getUserProfile();
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        
+        // Crear un UserProfile con los datos disponibles
+        _currentUser = UserProfile(
+          id: userId,
+          email: userData['email'] as String? ?? '',
+          firstName: userData['username'] as String? ?? 'Usuario',
+          lastName: '',
+          role: UserRole.owner, // Por defecto owner para usuarios nuevos
+          organizationId: userData['organizationId'] as String? ?? '',
+          createdAt: (userData['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          updatedAt: (userData['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          isActive: userData['isActive'] as bool? ?? true,
+        );
+        notifyListeners();
+      } else {
+        _setError('Perfil de usuario no encontrado');
+      }
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Cargar la organización del usuario
+  Future<void> loadOrganization(String organizationId) async {
+    if (_currentUser == null) {
+      _setError('Usuario no cargado');
+      return;
+    }
+
+    _setLoading(true);
+    _clearError();
+
+    try {
+      final organization = await _userDataService.getOrganization(_currentUser!.id);
+      _currentOrganization = organization;
+      notifyListeners();
+    } catch (e) {
+      _setError(e.toString());
     } finally {
       _setLoading(false);
     }
@@ -61,9 +86,9 @@ class OrganizationViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      _organizationUsers = await _userService.getUsersByOrganization(organizationId);
+      _organizationUsers = await _userDataService.getUsersByOrganization(organizationId);
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
     } finally {
       _setLoading(false);
     }
@@ -72,41 +97,65 @@ class OrganizationViewModel extends ChangeNotifier {
   /// Cargar estadísticas de la organización
   Future<void> _loadOrganizationStats(String organizationId) async {
     try {
-      _organizationStats = await _organizationService.getOrganizationStats(organizationId);
+      _organizationStats = await _userDataService.getOrganizationStats(organizationId);
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
     }
   }
 
-  /// Crear nueva organización
+  /// Crear una nueva organización
   Future<String?> createOrganization(Organization organization) async {
+    if (_currentUser == null) {
+      _setError('Usuario no cargado');
+      return null;
+    }
+
     _setLoading(true);
     _clearError();
 
     try {
-      final organizationId = await _organizationService.createOrganization(organization);
-      _currentOrganization = organization;
+      // Crear la organización
+      final organizationId = await _userDataService.createOrganization(
+        _currentUser!.id, 
+        organization
+      );
+
+      // Inicializar la estructura de datos del usuario
+      await _userDataService.initializeUserData(_currentUser!.id);
+
+      // Actualizar el usuario con el organizationId
+      final updatedUser = _currentUser!.copyWith(organizationId: organizationId);
+      // Por ahora solo actualizamos localmente, en el futuro se actualizaría en Firestore
+      
+      _currentUser = updatedUser;
+      _currentOrganization = organization.copyWith(id: organizationId);
+      
+      notifyListeners();
       return organizationId;
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
       return null;
     } finally {
       _setLoading(false);
     }
   }
 
-  /// Actualizar organización
-  Future<bool> updateOrganization(Organization organization) async {
+  /// Actualizar la organización
+  Future<void> updateOrganization(Organization organization) async {
+    if (_currentUser == null) {
+      _setError('Usuario no cargado');
+      return;
+    }
+
     _setLoading(true);
     _clearError();
 
     try {
-      await _organizationService.updateOrganization(organization.id, organization);
+      await _userDataService.updateOrganization(_currentUser!.id, organization);
       _currentOrganization = organization;
-      return true;
+      notifyListeners();
     } catch (e) {
-      _setError(AppError.fromException(e));
-      return false;
+      _setError(e.toString());
     } finally {
       _setLoading(false);
     }
@@ -115,7 +164,7 @@ class OrganizationViewModel extends ChangeNotifier {
   /// Invitar usuario a la organización
   Future<bool> inviteUser(String email, UserRole role) async {
     if (_currentOrganization == null || _currentUser == null) {
-      _setError(AppError.validation('No se puede invitar usuarios sin organización'));
+      _setError('No se puede invitar usuarios sin organización');
       return false;
     }
 
@@ -123,18 +172,17 @@ class OrganizationViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      await _userService.inviteUser(
-        email,
+      await _userDataService.inviteUser(
+        _currentUser!.id,
         _currentOrganization!.id,
         role,
-        _currentUser!.id,
       );
       
       // Recargar usuarios de la organización
       await loadOrganizationUsers(_currentOrganization!.id);
       return true;
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
       return false;
     } finally {
       _setLoading(false);
@@ -147,20 +195,20 @@ class OrganizationViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      await _userService.activateUser(userId);
+      await _userDataService.activateUser(userId);
       
       // Actualizar usuario en la lista local
       final userIndex = _organizationUsers.indexWhere((u) => u.id == userId);
       if (userIndex != -1) {
         _organizationUsers[userIndex] = _organizationUsers[userIndex].copyWith(
-          status: UserStatus.active,
+          isActive: true,
         );
         notifyListeners();
       }
       
       return true;
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
       return false;
     } finally {
       _setLoading(false);
@@ -173,20 +221,20 @@ class OrganizationViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      await _userService.suspendUser(userId);
+      await _userDataService.suspendUser(userId);
       
       // Actualizar usuario en la lista local
       final userIndex = _organizationUsers.indexWhere((u) => u.id == userId);
       if (userIndex != -1) {
         _organizationUsers[userIndex] = _organizationUsers[userIndex].copyWith(
-          status: UserStatus.suspended,
+          isActive: false,
         );
         notifyListeners();
       }
       
       return true;
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
       return false;
     } finally {
       _setLoading(false);
@@ -195,46 +243,64 @@ class OrganizationViewModel extends ChangeNotifier {
 
   /// Verificar permisos del usuario actual
   bool hasPermission(String permission) {
-    return _currentUser?.hasPermission(permission) ?? false;
+    if (_currentUser == null) return false;
+    return _currentUser!.permissions.contains(permission) || 
+           _currentUser!.role == UserRole.owner || 
+           _currentUser!.role == UserRole.admin;
   }
 
   /// Verificar si el usuario actual puede gestionar usuarios
   bool canManageUsers() {
-    return _currentUser?.canManageUsers() ?? false;
+    if (_currentUser == null) return false;
+    return _currentUser!.role == UserRole.owner || 
+           _currentUser!.role == UserRole.admin ||
+           _currentUser!.permissions.contains('manage_users');
   }
 
   /// Verificar si el usuario actual puede gestionar productos
   bool canManageProducts() {
-    return _currentUser?.canManageProducts() ?? false;
+    if (_currentUser == null) return false;
+    return _currentUser!.role == UserRole.owner || 
+           _currentUser!.role == UserRole.admin ||
+           _currentUser!.role == UserRole.manager ||
+           _currentUser!.permissions.contains('manage_products');
   }
 
   /// Verificar si el usuario actual puede ver reportes
   bool canViewReports() {
-    return _currentUser?.canViewReports() ?? false;
+    if (_currentUser == null) return false;
+    return _currentUser!.role == UserRole.owner || 
+           _currentUser!.role == UserRole.admin ||
+           _currentUser!.role == UserRole.manager ||
+           _currentUser!.permissions.contains('view_reports');
   }
 
   /// Verificar si el usuario actual puede gestionar ventas
   bool canManageSales() {
-    return _currentUser?.canManageSales() ?? false;
+    if (_currentUser == null) return false;
+    return _currentUser!.role == UserRole.owner || 
+           _currentUser!.role == UserRole.admin ||
+           _currentUser!.role == UserRole.manager ||
+           _currentUser!.permissions.contains('manage_sales');
   }
 
   /// Limpiar datos
-  void clear() {
-    _currentOrganization = null;
+  void clearData() {
     _currentUser = null;
+    _currentOrganization = null;
     _organizationUsers.clear();
     _organizationStats.clear();
     _clearError();
     notifyListeners();
   }
 
-  // Métodos privados para manejo de estado
+  // Métodos privados
   void _setLoading(bool loading) {
     _isLoading = loading;
     notifyListeners();
   }
 
-  void _setError(AppError error) {
+  void _setError(String error) {
     _error = error;
     notifyListeners();
   }

@@ -29,7 +29,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     
     if (organizationId != null) {
       await context.read<ProductViewModel>().loadProducts(organizationId);
-      await context.read<SaleViewModel>().loadSales();
+      await context.read<SaleViewModel>().loadSales(organizationId);
       await context.read<CategoryViewModel>().loadCategories(organizationId);
     }
   }
@@ -43,13 +43,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         }
 
         // Verificar si hay errores
-        final errors = <AppError?>[
-          productVM.error,
-          saleVM.error,
-          categoryVM.error,
-        ].where((error) => error != null).toList();
+        final errorMessages = <String>[];
+        if (productVM.error != null) {
+          errorMessages.add(productVM.error!);
+        }
+        if (saleVM.error != null) {
+          errorMessages.add(saleVM.error!.message);
+        }
+        if (categoryVM.error != null) {
+          errorMessages.add(categoryVM.error!.message);
+        }
 
-        if (errors.isNotEmpty) {
+        if (errorMessages.isNotEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -61,7 +66,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  errors.first!.message,
+                  errorMessages.first,
                   style: const TextStyle(fontSize: 16),
                   textAlign: TextAlign.center,
                 ),

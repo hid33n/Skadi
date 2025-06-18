@@ -36,7 +36,9 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
         Navigator.of(context).pushReplacementNamed('/login');
       }
     } catch (e) {
-      context.showError(e);
+      if (mounted) {
+        context.showError(e);
+      }
     }
   }
 
@@ -47,8 +49,9 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
     if (organizationId != null) {
       final movementViewModel = context.read<MovementViewModel>();
       final productViewModel = context.read<ProductViewModel>();
+      
       await Future.wait([
-        movementViewModel.loadMovements(),
+        movementViewModel.loadMovements(organizationId),
         productViewModel.loadProducts(organizationId),
       ]);
     }
@@ -121,7 +124,7 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (movementVM.error.isNotEmpty) {
+          if (movementVM.error != null && movementVM.error!.isNotEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -133,7 +136,7 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    movementVM.error,
+                    movementVM.error!,
                     style: const TextStyle(fontSize: 16),
                     textAlign: TextAlign.center,
                   ),
@@ -263,8 +266,8 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
                                   color: movement.type == MovementType.entry
-                                      ? Colors.green.withOpacity(0.1)
-                                      : Colors.red.withOpacity(0.1),
+                                      ? Colors.green.withValues(alpha: 0.1)
+                                      : Colors.red.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Icon(
@@ -295,8 +298,8 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: movement.type == MovementType.entry
-                                          ? Colors.green.withOpacity(0.1)
-                                          : Colors.red.withOpacity(0.1),
+                                          ? Colors.green.withValues(alpha: 0.1)
+                                          : Colors.red.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
@@ -321,22 +324,12 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
                                     ),
                                   ],
                                   const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.access_time,
-                                        size: 14,
-                                        color: Colors.grey[500],
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        _formatDate(movement.date),
-                                        style: TextStyle(
-                                          color: Colors.grey[500],
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ],
+                                  Text(
+                                    _formatDate(movement.date),
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 11,
+                                    ),
                                   ),
                                 ],
                               ),

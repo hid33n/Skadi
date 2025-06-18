@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../models/product.dart';
-import '../models/category.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
 import '../viewmodels/organization_viewmodel.dart';
 import '../services/auth_service.dart';
-import '../widgets/custom_snackbar.dart';
 import '../utils/error_handler.dart';
+import '../widgets/custom_text_field.dart';
+import '../widgets/custom_button.dart';
+import '../widgets/loading_overlay.dart';
+import '../widgets/mobile_navigation.dart';
+import '../widgets/advanced_search.dart';
+import '../widgets/responsive_grid.dart';
+import '../widgets/error_widgets.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -212,7 +218,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              error?.message ?? 'Error desconocido',
+                              error?.toString() ?? 'Error desconocido',
                               style: const TextStyle(fontSize: 16),
                               textAlign: TextAlign.center,
                             ),
@@ -224,8 +230,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           ],
                         ),
                       );
-                    if (productVM.error != null && productVM.errorMessage != null) {
-                      return Center(child: Text('Error: ${productVM.errorMessage}'));
                     }
 
                     if (_filteredProducts.isEmpty) {
@@ -522,7 +526,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              _error!.message,
+              _error!.toString(),
               style: const TextStyle(fontSize: 16),
               textAlign: TextAlign.center,
             ),

@@ -30,7 +30,12 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
   Future<void> _loadSales() async {
-    await context.read<SaleViewModel>().loadSales();
+    final organizationViewModel = context.read<OrganizationViewModel>();
+    final organizationId = organizationViewModel.currentOrganization?.id;
+    
+    if (organizationId != null) {
+      await context.read<SaleViewModel>().loadSales(organizationId);
+    }
   }
 
   Future<void> _deleteSale(Sale sale) async {
@@ -55,15 +60,20 @@ class _SalesScreenState extends State<SalesScreen> {
 
     if (confirmed == true) {
       try {
-        final success = await context.read<SaleViewModel>().deleteSale(sale.id);
-        if (success) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Venta eliminada correctamente'),
-                backgroundColor: Colors.green,
-              ),
-            );
+        final organizationViewModel = context.read<OrganizationViewModel>();
+        final organizationId = organizationViewModel.currentOrganization?.id;
+        
+        if (organizationId != null) {
+          final success = await context.read<SaleViewModel>().deleteSale(sale.id, organizationId);
+          if (success) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Venta eliminada correctamente'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
           }
         }
       } catch (e) {

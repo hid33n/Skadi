@@ -1,31 +1,62 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'product.dart';
+import 'sale.dart';
+import 'category.dart' as app_category;
+import 'movement.dart';
 
 class DashboardData {
-  final List<SalesData> salesData;
-  final List<LowStockProduct> lowStockProducts;
-  final List<RecentMovement> recentMovements;
-  final Map<String, dynamic> summary;
+  final int totalProducts;
+  final int totalSales;
+  final double totalRevenue;
+  final int totalCategories;
+  final List<Movement> recentMovements;
+  final List<Product> products;
+  final List<Sale> sales;
+  final List<app_category.Category> categories;
 
   DashboardData({
-    required this.salesData,
-    required this.lowStockProducts,
+    required this.totalProducts,
+    required this.totalSales,
+    required this.totalRevenue,
+    required this.totalCategories,
     required this.recentMovements,
-    required this.summary,
+    required this.products,
+    required this.sales,
+    required this.categories,
   });
 
   factory DashboardData.fromFirestore(Map<String, dynamic> data) {
     return DashboardData(
-      salesData: (data['salesData'] as List)
-          .map((e) => SalesData.fromMap(e))
-          .toList(),
-      lowStockProducts: (data['lowStockProducts'] as List)
-          .map((e) => LowStockProduct.fromMap(e))
-          .toList(),
-      recentMovements: (data['recentMovements'] as List)
-          .map((e) => RecentMovement.fromMap(e))
-          .toList(),
-      summary: data['summary'] ?? {},
+      totalProducts: data['totalProducts'] ?? 0,
+      totalSales: data['totalSales'] ?? 0,
+      totalRevenue: (data['totalRevenue'] ?? 0.0).toDouble(),
+      totalCategories: data['totalCategories'] ?? 0,
+      recentMovements: (data['recentMovements'] as List?)
+          ?.map((e) => Movement.fromMap(e, ''))
+          .toList() ?? [],
+      products: (data['products'] as List?)
+          ?.map((e) => Product.fromMap(e, ''))
+          .toList() ?? [],
+      sales: (data['sales'] as List?)
+          ?.map((e) => Sale.fromMap(e, ''))
+          .toList() ?? [],
+      categories: (data['categories'] as List?)
+          ?.map((e) => app_category.Category.fromMap(e, ''))
+          .toList() ?? [],
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'totalProducts': totalProducts,
+      'totalSales': totalSales,
+      'totalRevenue': totalRevenue,
+      'totalCategories': totalCategories,
+      'recentMovements': recentMovements.map((e) => e.toMap()).toList(),
+      'products': products.map((e) => e.toMap()).toList(),
+      'sales': sales.map((e) => e.toMap()).toList(),
+      'categories': categories.map((e) => e.toMap()).toList(),
+    };
   }
 }
 

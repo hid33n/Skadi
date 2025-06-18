@@ -76,7 +76,7 @@ class CategoryService {
         
         await _firestore.collection('categories').doc(id).delete();
       } else {
-        throw AppError.permission('No tienes permisos para eliminar esta categoría');
+        throw AppError.validation('No tienes permisos para eliminar esta categoría');
       }
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);

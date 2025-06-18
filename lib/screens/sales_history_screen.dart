@@ -23,7 +23,12 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   }
 
   Future<void> _loadSales() async {
-    await context.read<SaleViewModel>().loadSales();
+    final organizationViewModel = context.read<OrganizationViewModel>();
+    final organizationId = organizationViewModel.currentOrganization?.id;
+    
+    if (organizationId != null) {
+      await context.read<SaleViewModel>().loadSales(organizationId);
+    }
   }
 
   @override

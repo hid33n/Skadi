@@ -65,7 +65,7 @@ class ProductService {
       if (product != null) {
         await _firestore.collection('products').doc(id).delete();
       } else {
-        throw AppError.permission('No tienes permisos para eliminar este producto');
+        throw AppError.validation('No tienes permisos para eliminar este producto');
       }
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
@@ -83,7 +83,7 @@ class ProductService {
         );
         await updateProduct(updated);
       } else {
-        throw AppError.permission('No tienes permisos para actualizar este producto');
+        throw AppError.validation('No tienes permisos para actualizar este producto');
       }
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
