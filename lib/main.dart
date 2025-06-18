@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/user_data_service.dart';
+import 'services/sync_service.dart';
 import 'viewmodels/product_viewmodel.dart';
 import 'viewmodels/category_viewmodel.dart';
 import 'viewmodels/movement_viewmodel.dart';
@@ -26,6 +27,15 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  // Inicializar servicios de sincronización
+  try {
+    final syncService = SyncService();
+    await syncService.initialize();
+  } catch (e) {
+    debugPrint('Error al inicializar sincronización: $e');
+  }
+  
   runApp(const MyApp());
 }
 
@@ -42,6 +52,9 @@ class MyApp extends StatelessWidget {
         ),
         Provider<UserDataService>(
           create: (_) => UserDataService(),
+        ),
+        Provider<SyncService>(
+          create: (_) => SyncService(),
         ),
         // ViewModels
         ChangeNotifierProvider<ProductViewModel>(

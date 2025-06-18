@@ -5,12 +5,12 @@ import '../models/sale.dart';
 import '../models/category.dart' as app_category;
 import '../models/movement.dart';
 import '../models/organization.dart';
-import '../services/user_data_service.dart';
+import '../services/sync_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
 class DashboardViewModel extends ChangeNotifier {
-  final UserDataService _userDataService = UserDataService();
+  final SyncService _syncService = SyncService();
   final AuthService _authService = AuthService();
 
   DashboardData? _dashboardData;
@@ -53,7 +53,7 @@ class DashboardViewModel extends ChangeNotifier {
       }
 
       // Primero cargar la organización del usuario
-      _currentOrganization = await _userDataService.getOrganization(currentUser.uid);
+      _currentOrganization = await _syncService.getOrganization();
       
       if (_currentOrganization == null) {
         _setError('No se encontró la organización del usuario');
@@ -62,10 +62,10 @@ class DashboardViewModel extends ChangeNotifier {
 
       // Cargar datos en paralelo usando el organizationId
       final results = await Future.wait([
-        _userDataService.getProducts(currentUser.uid, _currentOrganization!.id),
-        _userDataService.getSales(currentUser.uid, _currentOrganization!.id),
-        _userDataService.getCategories(currentUser.uid, _currentOrganization!.id),
-        _userDataService.getMovements(currentUser.uid, _currentOrganization!.id),
+        _syncService.getProducts(_currentOrganization!.id),
+        _syncService.getSales(_currentOrganization!.id),
+        _syncService.getCategories(_currentOrganization!.id),
+        _syncService.getMovements(_currentOrganization!.id),
       ]);
 
       final products = results[0] as List<Product>;
@@ -113,10 +113,10 @@ class DashboardViewModel extends ChangeNotifier {
 
       // Cargar datos en paralelo usando el organizationId proporcionado
       final results = await Future.wait([
-        _userDataService.getProducts(currentUser.uid, organizationId),
-        _userDataService.getSales(currentUser.uid, organizationId),
-        _userDataService.getCategories(currentUser.uid, organizationId),
-        _userDataService.getMovements(currentUser.uid, organizationId),
+        _syncService.getProducts(organizationId),
+        _syncService.getSales(organizationId),
+        _syncService.getCategories(organizationId),
+        _syncService.getMovements(organizationId),
       ]);
 
       final products = results[0] as List<Product>;

@@ -10,6 +10,7 @@ import 'category_management_screen.dart';
 import 'movement_history_screen.dart';
 import 'sales_screen.dart';
 import 'add_sale_screen.dart';
+import '../services/sync_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,11 +23,13 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   final _authService = AuthService();
   String _username = '';
+  final SyncService _syncService = SyncService();
 
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
+    _syncService.initialize();
   }
 
   Future<void> _loadUserProfile() async {
@@ -67,6 +70,39 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Widget _buildAppBarTitle() {
+    return StreamBuilder<bool>(
+      stream: _syncService.connectivityStream,
+      builder: (context, snapshot) {
+        final isOnline = snapshot.data ?? _syncService.isOnline;
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.inventory, color: Theme.of(context).primaryColor),
+            const SizedBox(width: 8),
+            const Text(
+              'Skadi Stock',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              isOnline ? 'Online' : 'Offline',
+              style: TextStyle(
+                color: isOnline ? Colors.green : Colors.red,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
@@ -86,19 +122,8 @@ class _HomeScreenState extends State<HomeScreen> {
       navigateToIndex: navigateToIndex,
       child: Scaffold(
         appBar: AppBar(
-          title: Row(
-            children: [
-              Icon(Icons.inventory, color: Theme.of(context).primaryColor),
-              const SizedBox(width: 8),
-              const Text(
-                'Skadi Stock',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                ),
-              ),
-            ],
-          ),
+          centerTitle: true,
+          title: _buildAppBarTitle(),
           automaticallyImplyLeading: false,
           actions: [
             IconButton(
@@ -130,19 +155,8 @@ class _HomeScreenState extends State<HomeScreen> {
       navigateToIndex: navigateToIndex,
       child: Scaffold(
         appBar: AppBar(
-          title: Row(
-            children: [
-              Icon(Icons.inventory, color: Theme.of(context).primaryColor),
-              const SizedBox(width: 8),
-              const Text(
-                'Skadi Stock',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                ),
-              ),
-            ],
-          ),
+          centerTitle: true,
+          title: _buildAppBarTitle(),
           automaticallyImplyLeading: false,
           actions: [
             IconButton(
@@ -204,19 +218,8 @@ class _HomeScreenState extends State<HomeScreen> {
       navigateToIndex: navigateToIndex,
       child: Scaffold(
         appBar: AppBar(
-          title: Row(
-            children: [
-              Icon(Icons.inventory, color: Theme.of(context).primaryColor),
-              const SizedBox(width: 8),
-              const Text(
-                'Skadi Stock',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                ),
-              ),
-            ],
-          ),
+          centerTitle: true,
+          title: _buildAppBarTitle(),
           automaticallyImplyLeading: false,
           actions: [
             IconButton(
