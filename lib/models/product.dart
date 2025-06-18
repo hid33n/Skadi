@@ -9,6 +9,7 @@ class Product {
   final int minStock;
   final int maxStock;
   final String categoryId;
+  final String organizationId;
   final String? imageUrl;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -22,6 +23,7 @@ class Product {
     required this.minStock,
     required this.maxStock,
     required this.categoryId,
+    required this.organizationId,
     this.imageUrl,
     required this.createdAt,
     required this.updatedAt,
@@ -36,6 +38,7 @@ class Product {
       'minStock': minStock,
       'maxStock': maxStock,
       'categoryId': categoryId,
+      'organizationId': organizationId,
       'imageUrl': imageUrl,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -52,6 +55,7 @@ class Product {
       minStock: map['minStock'] as int,
       maxStock: map['maxStock'] as int,
       categoryId: map['categoryId'] as String,
+      organizationId: map['organizationId'] as String,
       imageUrl: map['imageUrl'] as String?,
       createdAt: DateTime.parse(map['createdAt'] as String),
       updatedAt: DateTime.parse(map['updatedAt'] as String),
@@ -67,6 +71,7 @@ class Product {
     int? minStock,
     int? maxStock,
     String? categoryId,
+    String? organizationId,
     String? imageUrl,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -80,6 +85,7 @@ class Product {
       minStock: minStock ?? this.minStock,
       maxStock: maxStock ?? this.maxStock,
       categoryId: categoryId ?? this.categoryId,
+      organizationId: organizationId ?? this.organizationId,
       imageUrl: imageUrl ?? this.imageUrl,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

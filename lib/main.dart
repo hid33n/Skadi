@@ -10,18 +10,15 @@ import 'viewmodels/movement_viewmodel.dart';
 import 'viewmodels/sale_viewmodel.dart';
 import 'viewmodels/theme_viewmodel.dart';
 import 'viewmodels/dashboard_viewmodel.dart';
-import 'screens/dashboard_screen.dart';
-import 'screens/product_list_screen.dart';
-import 'screens/category_management_screen.dart';
-import 'screens/movement_history_screen.dart';
-import 'screens/sales_screen.dart';
-import 'screens/add_sale_screen.dart';
-import 'screens/add_product_screen.dart';
-import 'widgets/adaptive_navigation.dart';
-import 'widgets/page_transition.dart';
+import 'viewmodels/organization_viewmodel.dart';
+import 'viewmodels/auth_viewmodel.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
+import 'screens/organization_setup_screen.dart';
+import 'screens/add_sale_screen.dart';
+import 'screens/add_product_screen.dart';
+import 'widgets/page_transition.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -48,10 +45,10 @@ class MyApp extends StatelessWidget {
         ),
         // ViewModels
         ChangeNotifierProvider<ProductViewModel>(
-          create: (context) => ProductViewModel(context.read<FirestoreService>()),
+          create: (_) => ProductViewModel(),
         ),
         ChangeNotifierProvider<CategoryViewModel>(
-          create: (context) => CategoryViewModel(context.read<FirestoreService>()),
+          create: (_) => CategoryViewModel(),
         ),
         ChangeNotifierProvider<MovementViewModel>(
           create: (context) => MovementViewModel(context.read<FirestoreService>()),
@@ -64,6 +61,12 @@ class MyApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<ThemeViewModel>(
           create: (_) => ThemeViewModel(),
+        ),
+        ChangeNotifierProvider<OrganizationViewModel>(
+          create: (_) => OrganizationViewModel(),
+        ),
+        ChangeNotifierProvider<AuthViewModel>(
+          create: (context) => AuthViewModel(context.read<AuthService>()),
         ),
       ],
       child: Consumer<ThemeViewModel>(
@@ -92,6 +95,9 @@ class MyApp extends StatelessWidget {
                   break;
                 case '/add-product':
                   page = const AddProductScreen();
+                  break;
+                case '/organization-setup':
+                  page = const OrganizationSetupScreen();
                   break;
                 default:
                   page = const LoginScreen();

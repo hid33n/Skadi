@@ -5,16 +5,101 @@ import 'package:intl/intl.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/sale_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
+import '../viewmodels/organization_viewmodel.dart';
+import '../models/category.dart';
+import '../utils/error_handler.dart';
 
-class AnalyticsScreen extends StatelessWidget {
+class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
 
   @override
+  State<AnalyticsScreen> createState() => _AnalyticsScreenState();
+}
+
+class _AnalyticsScreenState extends State<AnalyticsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final organizationViewModel = context.read<OrganizationViewModel>();
+    final organizationId = organizationViewModel.currentOrganization?.id;
+    
+    if (organizationId != null) {
+      await context.read<ProductViewModel>().loadProducts(organizationId);
+      await context.read<SaleViewModel>().loadSales();
+      await context.read<CategoryViewModel>().loadCategories(organizationId);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Consumer3<ProductViewModel, SaleViewModel, CategoryViewModel>(
-      builder: (context, productVM, saleVM, categoryVM, child) {
+    return Consumer4<ProductViewModel, SaleViewModel, CategoryViewModel, OrganizationViewModel>(
+      builder: (context, productVM, saleVM, categoryVM, orgVM, child) {
         if (productVM.isLoading || saleVM.isLoading || categoryVM.isLoading) {
           return const Center(child: CircularProgressIndicator());
+        }
+
+        // Verificar si hay errores
+        final errors = <AppError?>[
+          productVM.error,
+          saleVM.error,
+          categoryVM.error,
+        ].where((error) => error != null).toList();
+
+        if (errors.isNotEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 64,
+                  color: Colors.red[300],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  errors.first!.message,
+                  style: const TextStyle(fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _loadData,
+                  child: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Verificar si hay datos
+        if (productVM.products.isEmpty && saleVM.sales.isEmpty && categoryVM.categories.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.analytics_outlined,
+                  size: 64,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'No hay datos para mostrar',
+                  style: TextStyle(fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _loadData,
+                  child: const Text('Cargar Datos'),
+                ),
+              ],
+            ),
+          );
         }
 
         return SingleChildScrollView(
@@ -22,21 +107,37 @@ class AnalyticsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Análisis',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+              Row(
+                children: [
+                  const Text(
+                    'Análisis',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _loadData,
+                    tooltip: 'Actualizar datos',
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               _buildSummaryCards(context, productVM, saleVM, categoryVM),
               const SizedBox(height: 24),
-              _buildSalesChart(context, saleVM),
-              const SizedBox(height: 24),
-              _buildTopProducts(context, saleVM),
-              const SizedBox(height: 24),
-              _buildCategoryDistribution(context, productVM, categoryVM),
+              if (saleVM.sales.isNotEmpty) ...[
+                _buildSalesChart(context, saleVM),
+                const SizedBox(height: 24),
+                _buildTopProducts(context, saleVM),
+                const SizedBox(height: 24),
+              ],
+              if (productVM.products.isNotEmpty && categoryVM.categories.isNotEmpty) ...[
+                _buildCategoryDistribution(context, productVM, categoryVM),
+                const SizedBox(height: 24),
+              ],
+              _buildStockAnalysis(context, productVM),
             ],
           ),
         );
@@ -59,6 +160,7 @@ class AnalyticsScreen extends StatelessWidget {
             productVM.products.length.toString(),
             '${productVM.products.where((p) => p.stock <= p.minStock).length} bajo stock',
             Icons.inventory_2,
+            Colors.blue,
           ),
         ),
         const SizedBox(width: 16),
@@ -69,6 +171,7 @@ class AnalyticsScreen extends StatelessWidget {
             saleVM.sales.length.toString(),
             '\$${saleVM.sales.fold<double>(0, (sum, sale) => sum + sale.amount).toStringAsFixed(2)}',
             Icons.shopping_cart,
+            Colors.green,
           ),
         ),
         const SizedBox(width: 16),
@@ -79,6 +182,7 @@ class AnalyticsScreen extends StatelessWidget {
             categoryVM.categories.length.toString(),
             '${productVM.products.length} productos',
             Icons.category,
+            Colors.orange,
           ),
         ),
       ],
@@ -91,8 +195,13 @@ class AnalyticsScreen extends StatelessWidget {
     String value,
     String subtitle,
     IconData icon,
+    Color color,
   ) {
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -100,29 +209,40 @@ class AnalyticsScreen extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, color: Theme.of(context).colorScheme.primary),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
                 const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.black54,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
               value,
-              style: const TextStyle(
-                fontSize: 24,
+              style: TextStyle(
+                fontSize: 28,
                 fontWeight: FontWeight.bold,
+                color: color,
               ),
             ),
             Text(
               subtitle,
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 12,
                 color: Colors.black54,
               ),
             ),
@@ -156,17 +276,30 @@ class AnalyticsScreen extends StatelessWidget {
     }
 
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Ventas de la Última Semana',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              children: [
+                Icon(
+                  Icons.trending_up,
+                  color: Theme.of(context).primaryColor,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Ventas de la Última Semana',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -256,36 +389,67 @@ class AnalyticsScreen extends StatelessWidget {
       ..sort((a, b) => b.value['total'].compareTo(a.value['total']));
 
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Productos Más Vendidos',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              children: [
+                Icon(
+                  Icons.star,
+                  color: Colors.amber,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Productos Más Vendidos',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             ...sortedProducts.take(5).map((entry) {
               return Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
+                padding: const EdgeInsets.only(bottom: 12.0),
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(entry.value['name']),
+                      child: Text(
+                        entry.value['name'],
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
                     ),
-                    Text(
-                      '${entry.value['quantity']} unidades',
-                      style: const TextStyle(color: Colors.black54),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${entry.value['quantity']} uds',
+                        style: TextStyle(
+                          color: Colors.blue[700],
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Text(
                       '\$${entry.value['total'].toStringAsFixed(2)}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                     ),
                   ],
@@ -306,36 +470,70 @@ class AnalyticsScreen extends StatelessWidget {
     final categoryCounts = <String, int>{};
     for (var product in productVM.products) {
       final category = categoryVM.categories
-          .firstWhere((c) => c.id == product.categoryId);
+          .firstWhere((c) => c.id == product.categoryId, orElse: () => Category(
+                id: 'unknown',
+                name: 'Sin categoría',
+                description: 'Producto sin categoría asignada',
+                organizationId: '',
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              ));
       categoryCounts[category.name] = (categoryCounts[category.name] ?? 0) + 1;
     }
 
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Distribución por Categoría',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              children: [
+                Icon(
+                  Icons.pie_chart,
+                  color: Colors.purple,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Distribución por Categoría',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             ...categoryCounts.entries.map((entry) {
               return Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
+                padding: const EdgeInsets.only(bottom: 12.0),
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(entry.key),
+                      child: Text(
+                        entry.key,
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
                     ),
-                    Text(
-                      '${entry.value} productos',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${entry.value} productos',
+                        style: TextStyle(
+                          color: Colors.purple[700],
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -344,6 +542,110 @@ class AnalyticsScreen extends StatelessWidget {
             }),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildStockAnalysis(BuildContext context, ProductViewModel productVM) {
+    final lowStockProducts = productVM.products.where((p) => p.stock <= p.minStock).toList();
+    final outOfStockProducts = productVM.products.where((p) => p.stock <= 0).toList();
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.warning,
+                  color: Colors.orange,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Análisis de Stock',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStockStat(
+                    'Sin Stock',
+                    outOfStockProducts.length.toString(),
+                    Colors.red,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildStockStat(
+                    'Stock Bajo',
+                    lowStockProducts.length.toString(),
+                    Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+            if (lowStockProducts.isNotEmpty || outOfStockProducts.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Productos que requieren atención:',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...lowStockProducts.take(3).map((product) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  '• ${product.name} (Stock: ${product.stock})',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              )),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStockStat(String title, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }

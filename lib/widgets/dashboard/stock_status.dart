@@ -14,6 +14,25 @@ class StockStatus extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
+        if (productVM.error != null) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 32,
+                  color: Colors.red[300],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  productVM.error!.message,
+                  style: const TextStyle(fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
         if (productVM.error != null && productVM.errorMessage != null) {
           return Center(child: Text('Error: ${productVM.errorMessage}'));
         }

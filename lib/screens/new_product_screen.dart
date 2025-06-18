@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/firestore_service.dart';
+import '../services/category_service.dart';
 import '../models/product.dart';
 import '../models/category.dart';
 import '../services/auth_service.dart';
+import '../viewmodels/organization_viewmodel.dart';
+import '../utils/error_handler.dart';
 
 class NewProductScreen extends StatefulWidget {
   const NewProductScreen({super.key});
@@ -22,6 +25,8 @@ class _NewProductScreenState extends State<NewProductScreen> {
   final _maxStockController = TextEditingController();
   String? _selectedCategoryId;
   List<Category> _categories = [];
+  bool _isLoading = false;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -41,56 +46,93 @@ class _NewProductScreenState extends State<NewProductScreen> {
   }
 
   Future<void> _loadCategories() async {
-    final categories = await context.read<FirestoreService>().getCategories();
     setState(() {
-      _categories = categories;
+      _isLoading = true;
     });
+
+    try {
+      final organizationViewModel = context.read<OrganizationViewModel>();
+      final organizationId = organizationViewModel.currentOrganization?.id;
+      
+      if (organizationId != null) {
+        final categories = await context.read<CategoryService>().getCategories(organizationId);
+        setState(() {
+          _categories = categories;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showError(e);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _saveProduct() async {
-    if (_formKey.currentState!.validate()) {
-      if (_selectedCategoryId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Por favor seleccione una categoría')),
-        );
+    if (!_formKey.currentState!.validate()) return;
+    
+    if (_selectedCategoryId == null) {
+      context.showError('Por favor seleccione una categoría');
+      return;
+    }
+
+    final organizationViewModel = context.read<OrganizationViewModel>();
+    final organizationId = organizationViewModel.currentOrganization?.id;
+    
+    if (organizationId == null) {
+      context.showError('No se pudo obtener la información de la organización');
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final userId = context.read<AuthService>().currentUser?.uid;
+      if (userId == null) {
+        context.showError('No hay usuario autenticado');
         return;
       }
 
-      try {
-        final userId = context.read<AuthService>().currentUser?.uid;
-        if (userId == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No hay usuario autenticado')),
-          );
-          return;
-        }
+      final product = Product(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: _nameController.text.trim(),
+        description: _descriptionController.text.trim(),
+        price: double.parse(_priceController.text),
+        stock: int.parse(_stockController.text),
+        minStock: int.parse(_minStockController.text),
+        maxStock: int.parse(_maxStockController.text),
+        categoryId: _selectedCategoryId!,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        organizationId: organizationId,
+      );
 
-        final product = Product(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          name: _nameController.text,
-          description: _descriptionController.text,
-          price: double.parse(_priceController.text),
-          stock: int.parse(_stockController.text),
-          minStock: int.parse(_minStockController.text),
-          maxStock: int.parse(_maxStockController.text),
-          categoryId: _selectedCategoryId!,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
+      await context.read<FirestoreService>().addProduct(product);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Producto agregado exitosamente'),
+            backgroundColor: Colors.green,
+          ),
         );
-
-        await context.read<FirestoreService>().addProduct(product);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Producto agregado exitosamente')),
-          );
-          Navigator.pop(context);
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al agregar el producto: $e')),
-          );
-        }
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showError(e);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
       }
     }
   }
@@ -100,140 +142,196 @@ class _NewProductScreenState extends State<NewProductScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nuevo Producto'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nombre',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese el nombre del producto';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Descripción',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _priceController,
-                decoration: const InputDecoration(
-                  labelText: 'Precio',
-                  border: OutlineInputBorder(),
-                  prefixText: '\$',
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese el precio';
-                  }
-                  if (double.tryParse(value) == null) {
-                    return 'Por favor ingrese un precio válido';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _stockController,
-                decoration: const InputDecoration(
-                  labelText: 'Stock',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese el stock';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return 'Por favor ingrese un stock válido';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _minStockController,
-                decoration: const InputDecoration(
-                  labelText: 'Stock Mínimo',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese el stock mínimo';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return 'Por favor ingrese un stock mínimo válido';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _maxStockController,
-                decoration: const InputDecoration(
-                  labelText: 'Stock Máximo',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese el stock máximo';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return 'Por favor ingrese un stock máximo válido';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _selectedCategoryId,
-                decoration: const InputDecoration(
-                  labelText: 'Categoría',
-                  border: OutlineInputBorder(),
-                ),
-                items: _categories.map((category) {
-                  return DropdownMenuItem(
-                    value: category.id,
-                    child: Text(category.name),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCategoryId = value;
-                  });
-                },
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _saveProduct,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text('Guardar Producto'),
-              ),
-            ],
+        actions: [
+          IconButton(
+            icon: _isSaving 
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.save),
+            onPressed: _isSaving ? null : _saveProduct,
+            tooltip: 'Guardar producto',
           ),
-        ),
+        ],
       ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nombre',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.inventory),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Por favor ingrese el nombre del producto';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Descripción',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.description),
+                      ),
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _priceController,
+                      decoration: const InputDecoration(
+                        labelText: 'Precio',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.attach_money),
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Por favor ingrese el precio';
+                        }
+                        if (double.tryParse(value) == null) {
+                          return 'Por favor ingrese un precio válido';
+                        }
+                        if (double.parse(value) <= 0) {
+                          return 'El precio debe ser mayor a 0';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _stockController,
+                            decoration: const InputDecoration(
+                              labelText: 'Stock',
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.inventory_2),
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Ingrese el stock';
+                              }
+                              if (int.tryParse(value) == null) {
+                                return 'Stock inválido';
+                              }
+                              if (int.parse(value) < 0) {
+                                return 'Stock no puede ser negativo';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _minStockController,
+                            decoration: const InputDecoration(
+                              labelText: 'Stock Mínimo',
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.trending_down),
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Ingrese stock mínimo';
+                              }
+                              if (int.tryParse(value) == null) {
+                                return 'Valor inválido';
+                              }
+                              if (int.parse(value) < 0) {
+                                return 'No puede ser negativo';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _maxStockController,
+                            decoration: const InputDecoration(
+                              labelText: 'Stock Máximo',
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.trending_up),
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Ingrese stock máximo';
+                              }
+                              if (int.tryParse(value) == null) {
+                                return 'Valor inválido';
+                              }
+                              if (int.parse(value) < 0) {
+                                return 'No puede ser negativo';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: _selectedCategoryId,
+                      decoration: const InputDecoration(
+                        labelText: 'Categoría',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.category),
+                      ),
+                      items: _categories.map((category) {
+                        return DropdownMenuItem(
+                          value: category.id,
+                          child: Text(category.name),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedCategoryId = value;
+                        });
+                      },
+                      validator: (value) {
+                        if (value == null) {
+                          return 'Por favor seleccione una categoría';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _saveProduct,
+                      icon: _isSaving 
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save),
+                      label: Text(_isSaving ? 'Guardando...' : 'Guardar Producto'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 } 

@@ -581,6 +581,7 @@ class DashboardGrid extends StatelessWidget {
           minStock: 0,
           maxStock: 100,
           categoryId: '',
+          organizationId: '',
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         ),

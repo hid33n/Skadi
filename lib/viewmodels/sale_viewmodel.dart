@@ -3,6 +3,7 @@ import '../models/sale.dart';
 import '../models/sale_item.dart';
 import '../services/firestore_service.dart';
 import '../utils/error_handler.dart';
+import '../utils/error_handler.dart';
 import 'package:flutter/material.dart';
 
 class SaleViewModel extends ChangeNotifier {
@@ -16,7 +17,6 @@ class SaleViewModel extends ChangeNotifier {
   List<Sale> get sales => _sales;
   bool get isLoading => _isLoading;
   AppError? get error => _error;
-  String? get errorMessage => _error?.message;
   double get totalSales => _sales.fold(0, (sum, sale) => sum + sale.amount);
   int get salesCount => _sales.length;
 
@@ -27,8 +27,8 @@ class SaleViewModel extends ChangeNotifier {
 
     try {
       _sales = await _firestoreService.getSales();
-    } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace);
+    } catch (e) {
+      _error = AppError.fromException(e);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -44,8 +44,8 @@ class SaleViewModel extends ChangeNotifier {
       await _firestoreService.addSale(sale);
       await loadSales();
       return true;
-    } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace);
+    } catch (e) {
+      _error = AppError.fromException(e);
       return false;
     } finally {
       _isLoading = false;
@@ -62,8 +62,8 @@ class SaleViewModel extends ChangeNotifier {
       await _firestoreService.deleteSale(id);
       await loadSales();
       return true;
-    } catch (e, stackTrace) {
-      _error = AppError.fromException(e, stackTrace);
+    } catch (e) {
+      _error = AppError.fromException(e);
       return false;
     } finally {
       _isLoading = false;

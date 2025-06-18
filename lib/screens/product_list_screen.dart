@@ -4,8 +4,10 @@ import '../models/product.dart';
 import '../models/category.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
+import '../viewmodels/organization_viewmodel.dart';
 import '../services/auth_service.dart';
 import '../widgets/custom_snackbar.dart';
+import '../utils/error_handler.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -19,7 +21,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
   final _authService = AuthService();
   List<Product> _filteredProducts = [];
   bool _isLoading = false;
-  String? _error;
+  AppError? _error;
 
   @override
   void initState() {
@@ -40,12 +42,21 @@ class _ProductListScreenState extends State<ProductListScreen> {
     });
 
     try {
-      await context.read<ProductViewModel>().loadProducts();
-      await context.read<CategoryViewModel>().loadCategories();
-      _filterProducts(_searchController.text);
+      final organizationViewModel = context.read<OrganizationViewModel>();
+      final organizationId = organizationViewModel.currentOrganization?.id;
+      
+      if (organizationId != null) {
+        await context.read<ProductViewModel>().loadProducts(organizationId);
+        await context.read<CategoryViewModel>().loadCategories(organizationId);
+        _filterProducts(_searchController.text);
+      } else {
+        setState(() {
+          _error = AppError.validation('No se pudo obtener la información de la organización');
+        });
+      }
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = AppError.fromException(e);
       });
     } finally {
       setState(() {
@@ -66,16 +77,29 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   Future<void> _handleMenuAction(String action, Product product) async {
+    final organizationViewModel = context.read<OrganizationViewModel>();
+    final organizationId = organizationViewModel.currentOrganization?.id;
+    
+    if (organizationId == null) {
+      context.showError('No se pudo obtener la información de la organización');
+      return;
+    }
+
     switch (action) {
       case 'edit':
         // TODO: Implementar edición de producto
+        Navigator.pushNamed(
+          context, 
+          '/edit-product',
+          arguments: {'product': product, 'organizationId': organizationId},
+        );
         break;
       case 'delete':
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Eliminar Producto'),
-            content: const Text('¿Estás seguro de que deseas eliminar este producto?'),
+            content: Text('¿Estás seguro de que deseas eliminar "${product.name}"?'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -83,6 +107,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
                 child: const Text('Eliminar'),
               ),
             ],
@@ -91,23 +116,31 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
         if (confirmed == true) {
           try {
-            await context.read<ProductViewModel>().deleteProduct(product.id);
-            _loadData();
-            if (mounted) {
-              CustomSnackBar.showSuccess(
-                context: context,
-                message: 'Producto eliminado correctamente',
-              );
+            final success = await context.read<ProductViewModel>().deleteProduct(product.id, organizationId);
+            if (success) {
+              _loadData();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Producto eliminado correctamente'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
             }
           } catch (e) {
             if (mounted) {
-              CustomSnackBar.showError(
-                context: context,
-                message: 'Error al eliminar el producto: $e',
-              );
+              context.showError(e);
             }
           }
         }
+        break;
+      case 'view':
+        Navigator.pushNamed(
+          context, 
+          '/product-detail',
+          arguments: {'product': product, 'organizationId': organizationId},
+        );
         break;
     }
   }
@@ -162,19 +195,68 @@ class _ProductListScreenState extends State<ProductListScreen> {
               Expanded(
                 child: Consumer<ProductViewModel>(
                   builder: (context, productVM, child) {
-                    if (productVM.isLoading) {
+                    if (_isLoading || productVM.isLoading) {
                       return const Center(child: CircularProgressIndicator());
                     }
 
+                    if (_error != null || productVM.error != null) {
+                      final error = _error ?? productVM.error;
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 64,
+                              color: Colors.red[300],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              error?.message ?? 'Error desconocido',
+                              style: const TextStyle(fontSize: 16),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _loadData,
+                              child: const Text('Reintentar'),
+                            ),
+                          ],
+                        ),
+                      );
                     if (productVM.error != null && productVM.errorMessage != null) {
                       return Center(child: Text('Error: ${productVM.errorMessage}'));
                     }
 
                     if (_filteredProducts.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          'No se encontraron productos',
-                          style: TextStyle(fontSize: 16),
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.inventory_2_outlined,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _searchController.text.isEmpty
+                                  ? 'No hay productos registrados'
+                                  : 'No se encontraron productos',
+                              style: const TextStyle(fontSize: 16),
+                              textAlign: TextAlign.center,
+                            ),
+                            if (_searchController.text.isEmpty) ...[
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.pushNamed(context, '/add-product');
+                                },
+                                icon: const Icon(Icons.add),
+                                label: const Text('Agregar Producto'),
+                              ),
+                            ],
+                          ],
                         ),
                       );
                     }
@@ -234,15 +316,21 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                         vertical: 4,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: product.stock <= 0
-                                            ? Colors.red.withOpacity(0.1)
-                                            : Colors.green.withOpacity(0.1),
+                                        color: product.stock <= product.minStock
+                                            ? Colors.orange.withOpacity(0.1)
+                                            : product.stock <= 0
+                                                ? Colors.red.withOpacity(0.1)
+                                                : Colors.green.withOpacity(0.1),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
                                         'Stock: ${product.stock}',
                                         style: TextStyle(
-                                          color: product.stock <= 0 ? Colors.red : Colors.green,
+                                          color: product.stock <= product.minStock
+                                              ? Colors.orange
+                                              : product.stock <= 0
+                                                  ? Colors.red
+                                                  : Colors.green,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
@@ -255,6 +343,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
                               icon: const Icon(Icons.more_vert),
                               onSelected: (value) => _handleMenuAction(value, product),
                               itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'view',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.visibility, size: 20),
+                                      SizedBox(width: 8),
+                                      Text('Ver'),
+                                    ],
+                                  ),
+                                ),
                                 const PopupMenuItem(
                                   value: 'edit',
                                   child: Row(
@@ -413,14 +511,60 @@ class _ProductListScreenState extends State<ProductListScreen> {
     }
 
     if (_error != null) {
-      return Center(child: Text('Error: $_error'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.red[300],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _error!.message,
+              style: const TextStyle(fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadData,
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      );
     }
 
     if (_filteredProducts.isEmpty) {
-      return const Center(
-        child: Text(
-          'No se encontraron productos',
-          style: TextStyle(fontSize: 16),
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.inventory_2_outlined,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _searchController.text.isEmpty
+                  ? 'No hay productos registrados'
+                  : 'No se encontraron productos',
+              style: const TextStyle(fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            if (_searchController.text.isEmpty) ...[
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/add-product');
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Agregar Producto'),
+              ),
+            ],
+          ],
         ),
       );
     }
@@ -461,6 +605,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       icon: const Icon(Icons.more_vert),
                       onSelected: (value) => _handleMenuAction(value, product),
                       itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'view',
+                          child: Row(
+                            children: [
+                              Icon(Icons.visibility, size: 20),
+                              SizedBox(width: 8),
+                              Text('Ver'),
+                            ],
+                          ),
+                        ),
                         const PopupMenuItem(
                           value: 'edit',
                           child: Row(
@@ -519,15 +673,21 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: product.stock <= 0
-                            ? Colors.red.withOpacity(0.1)
-                            : Colors.green.withOpacity(0.1),
+                        color: product.stock <= product.minStock
+                            ? Colors.orange.withOpacity(0.1)
+                            : product.stock <= 0
+                                ? Colors.red.withOpacity(0.1)
+                                : Colors.green.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         'Stock: ${product.stock}',
                         style: TextStyle(
-                          color: product.stock <= 0 ? Colors.red : Colors.green,
+                          color: product.stock <= product.minStock
+                              ? Colors.orange
+                              : product.stock <= 0
+                                  ? Colors.red
+                                  : Colors.green,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
