@@ -184,7 +184,7 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    productVM.error!.message,
+                    productVM.error!,
                     style: const TextStyle(fontSize: 16),
                     textAlign: TextAlign.center,
                   ),

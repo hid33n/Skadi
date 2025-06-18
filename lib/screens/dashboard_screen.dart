@@ -5,9 +5,7 @@ import '../widgets/dashboard/dashboard_grid.dart';
 import '../theme/responsive.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
-import '../viewmodels/product_viewmodel.dart';
-import '../viewmodels/sale_viewmodel.dart';
-import '../viewmodels/category_viewmodel.dart';
+import '../viewmodels/organization_viewmodel.dart';
 
 class DashboardScreen extends StatefulWidget {
   final bool showAppBar;
@@ -27,13 +25,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    // Cargar datos del dashboard al iniciar
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<DashboardViewModel>().loadDashboardData();
-      context.read<ProductViewModel>().loadProducts();
-      context.read<SaleViewModel>().loadSales();
-      context.read<CategoryViewModel>().loadCategories();
-    });
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    final dashboardViewModel = context.read<DashboardViewModel>();
+    await dashboardViewModel.loadDashboardData();
   }
 
   Future<void> _signOut() async {
@@ -51,6 +48,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final organizationVM = context.watch<OrganizationViewModel>();
+    if (organizationVM.currentUser == null || organizationVM.currentOrganization == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     final body = RefreshIndicator(
       onRefresh: () => context.read<DashboardViewModel>().loadDashboardData(),
       child: SingleChildScrollView(
@@ -102,26 +104,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
 
-    // Si no debe mostrar AppBar, retornar solo el body
-    if (!widget.showAppBar) {
-      return body;
-    }
-
-    // Si debe mostrar AppBar, retornar el Scaffold completo
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        foregroundColor: Theme.of(context).primaryColor,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _signOut,
-          ),
-        ],
-      ),
-      body: body,
-    );
+    return widget.showAppBar
+        ? Scaffold(
+            appBar: AppBar(
+              title: const Text('Dashboard'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  onPressed: _signOut,
+                  tooltip: 'Cerrar sesión',
+                ),
+              ],
+            ),
+            body: body,
+          )
+        : body;
   }
 } 

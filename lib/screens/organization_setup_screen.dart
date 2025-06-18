@@ -71,20 +71,22 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
         id: '', // Se asignará al crear
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
-        email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
-        website: _websiteController.text.trim(),
-        address: _addressController.text.trim(),
-        city: _cityController.text.trim(),
-        state: _stateController.text.trim(),
-        country: _countryController.text.trim(),
-        postalCode: _postalCodeController.text.trim(),
-        taxId: _taxIdController.text.trim(),
-        currency: _selectedCurrency,
-        timezone: _selectedTimezone,
+        ownerId: currentUser.uid,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        createdBy: currentUser.uid,
+        settings: {
+          'email': _emailController.text.trim(),
+          'phone': _phoneController.text.trim(),
+          'website': _websiteController.text.trim(),
+          'address': _addressController.text.trim(),
+          'city': _cityController.text.trim(),
+          'state': _stateController.text.trim(),
+          'country': _countryController.text.trim(),
+          'postalCode': _postalCodeController.text.trim(),
+          'taxId': _taxIdController.text.trim(),
+          'currency': _selectedCurrency,
+          'timezone': _selectedTimezone,
+        },
       );
 
       final organizationId = await viewModel.createOrganization(organization);
@@ -97,10 +99,9 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
           firstName: currentUser.displayName?.split(' ').first ?? 'Usuario',
           lastName: currentUser.displayName != null && currentUser.displayName!.split(' ').length > 1 
             ? currentUser.displayName!.split(' ').skip(1).join(' ')
-            : null,
+            : '',
           organizationId: organizationId,
           role: UserRole.owner,
-          status: UserStatus.active,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );

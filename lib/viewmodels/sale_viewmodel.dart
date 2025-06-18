@@ -1,18 +1,16 @@
 import 'package:flutter/foundation.dart';
 import '../models/sale.dart';
 import '../models/sale_item.dart';
-import '../services/firestore_service.dart';
+import '../services/sale_service.dart';
 import '../utils/error_handler.dart';
 import '../utils/error_handler.dart';
 import 'package:flutter/material.dart';
 
 class SaleViewModel extends ChangeNotifier {
-  final FirestoreService _firestoreService;
+  final SaleService _saleService = SaleService();
   List<Sale> _sales = [];
   bool _isLoading = false;
   AppError? _error;
-
-  SaleViewModel(this._firestoreService);
 
   List<Sale> get sales => _sales;
   bool get isLoading => _isLoading;
@@ -20,13 +18,13 @@ class SaleViewModel extends ChangeNotifier {
   double get totalSales => _sales.fold(0, (sum, sale) => sum + sale.amount);
   int get salesCount => _sales.length;
 
-  Future<void> loadSales() async {
+  Future<void> loadSales(String organizationId) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      _sales = await _firestoreService.getSales();
+      _sales = await _saleService.getSales(organizationId);
     } catch (e) {
       _error = AppError.fromException(e);
     } finally {
@@ -41,8 +39,8 @@ class SaleViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _firestoreService.addSale(sale);
-      await loadSales();
+      await _saleService.addSale(sale);
+      await loadSales(sale.organizationId);
       return true;
     } catch (e) {
       _error = AppError.fromException(e);
@@ -53,14 +51,14 @@ class SaleViewModel extends ChangeNotifier {
     }
   }
 
-  Future<bool> deleteSale(String id) async {
+  Future<bool> deleteSale(String id, String organizationId) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      await _firestoreService.deleteSale(id);
-      await loadSales();
+      await _saleService.deleteSale(id, organizationId);
+      await loadSales(organizationId);
       return true;
     } catch (e) {
       _error = AppError.fromException(e);

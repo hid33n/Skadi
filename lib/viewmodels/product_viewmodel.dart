@@ -1,51 +1,53 @@
 import 'package:flutter/material.dart';
 import '../models/product.dart';
-import '../services/product_service.dart';
-import '../utils/error_handler.dart';
-import '../services/firestore_service.dart';
+import '../services/user_data_service.dart';
+import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
 class ProductViewModel extends ChangeNotifier {
-  final ProductService _productService = ProductService();
+  final UserDataService _userDataService = UserDataService();
+  final AuthService _authService = AuthService();
   
   List<Product> _products = [];
   Product? _selectedProduct;
   Map<String, dynamic> _productStats = {};
   bool _isLoading = false;
-  AppError? _error;
-
-  ProductViewModel(this._firestoreService) {
-    loadProducts();
-  }
+  String? _error;
 
   List<Product> get products => _products;
   bool get isLoading => _isLoading;
-  AppError? get error => _error;
+  String? get error => _error;
 
-  /// Cargar productos de una organización
+  /// Cargar productos del usuario actual para una organización específica
   Future<void> loadProducts(String organizationId) async {
     _setLoading(true);
     _clearError();
 
     try {
-      _products = await _productService.getProducts(organizationId);
-      await _loadProductStats(organizationId);
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) {
+        _setError('Usuario no autenticado');
+        return;
+      }
+
+      _products = await _userDataService.getProducts(currentUser.uid, organizationId);
+      await _loadProductStats();
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
     } finally {
       _setLoading(false);
     }
   }
 
   /// Cargar producto específico
-  Future<void> loadProduct(String productId, String organizationId) async {
+  Future<void> loadProduct(String productId) async {
     _setLoading(true);
     _clearError();
 
     try {
-      _selectedProduct = await _productService.getProduct(productId, organizationId);
+      _selectedProduct = _products.firstWhere((p) => p.id == productId);
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
     } finally {
       _setLoading(false);
     }
@@ -57,7 +59,13 @@ class ProductViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      final productId = await _productService.addProduct(product);
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) {
+        _setError('Usuario no autenticado');
+        return false;
+      }
+
+      final productId = await _userDataService.addProduct(currentUser.uid, product);
       if (productId.isNotEmpty) {
         // Recargar productos
         await loadProducts(product.organizationId);
@@ -65,7 +73,7 @@ class ProductViewModel extends ChangeNotifier {
       }
       return false;
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
       return false;
     } finally {
       _setLoading(false);
@@ -78,12 +86,18 @@ class ProductViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      await _productService.updateProduct(product);
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) {
+        _setError('Usuario no autenticado');
+        return false;
+      }
+
+      await _userDataService.updateProduct(currentUser.uid, product.id, product);
       // Recargar productos
       await loadProducts(product.organizationId);
       return true;
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
       return false;
     } finally {
       _setLoading(false);
@@ -96,12 +110,18 @@ class ProductViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      await _productService.deleteProduct(id, organizationId);
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) {
+        _setError('Usuario no autenticado');
+        return false;
+      }
+
+      await _userDataService.deleteProduct(currentUser.uid, id);
       // Recargar productos
       await loadProducts(organizationId);
       return true;
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
       return false;
     } finally {
       _setLoading(false);
@@ -114,12 +134,20 @@ class ProductViewModel extends ChangeNotifier {
     _clearError();
 
     try {
-      await _productService.updateStock(id, newStock, organizationId);
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) {
+        _setError('Usuario no autenticado');
+        return false;
+      }
+
+      final product = _products.firstWhere((p) => p.id == id);
+      final updatedProduct = product.copyWith(stock: newStock);
+      await _userDataService.updateProduct(currentUser.uid, id, updatedProduct);
       // Recargar productos
       await loadProducts(organizationId);
       return true;
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
       return false;
     } finally {
       _setLoading(false);
@@ -127,41 +155,46 @@ class ProductViewModel extends ChangeNotifier {
   }
 
   /// Buscar productos
-  Future<List<Product>> searchProducts(String query, String organizationId) async {
+  Future<List<Product>> searchProducts(String query) async {
     try {
-      return await _productService.searchProducts(query, organizationId);
+      return searchProductsLocal(query);
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
       return [];
     }
   }
 
   /// Obtener productos por categoría
-  Future<List<Product>> getProductsByCategory(String categoryId, String organizationId) async {
+  Future<List<Product>> getProductsByCategory(String categoryId) async {
     try {
-      return await _productService.getProductsByCategory(categoryId, organizationId);
+      return filterByCategoryLocal(categoryId);
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
       return [];
     }
   }
 
   /// Obtener productos con stock bajo
-  Future<List<Product>> getLowStockProducts(String organizationId) async {
+  Future<List<Product>> getLowStockProducts() async {
     try {
-      return await _productService.getLowStockProducts(organizationId);
+      return getLowStockProductsLocal();
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
       return [];
     }
   }
 
   /// Cargar estadísticas de productos
-  Future<void> _loadProductStats(String organizationId) async {
+  Future<void> _loadProductStats() async {
     try {
-      _productStats = await _productService.getProductStats(organizationId);
+      _productStats = {
+        'totalProducts': _products.length,
+        'lowStockProducts': getLowStockProductsLocal().length,
+        'totalValue': getTotalStockValue(),
+        'categories': getProductsByCategoryLocal().length,
+      };
     } catch (e) {
-      _setError(AppError.fromException(e));
+      _setError(e.toString());
     }
   }
 
@@ -181,7 +214,7 @@ class ProductViewModel extends ChangeNotifier {
 
   /// Obtener valor total del stock (local)
   double getTotalStockValue() {
-    return _products.fold(0, (sum, product) => sum + (product.price * product.stock));
+    return _products.fold(0.0, (sum, product) => sum + (product.price * product.stock));
   }
 
   /// Buscar productos (local)
@@ -208,13 +241,13 @@ class ProductViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Métodos privados para manejo de estado
+  // Métodos privados
   void _setLoading(bool loading) {
     _isLoading = loading;
     notifyListeners();
   }
 
-  void _setError(AppError error) {
+  void _setError(String error) {
     _error = error;
     notifyListeners();
   }

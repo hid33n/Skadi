@@ -61,7 +61,7 @@ class MovementService {
       if (movement != null) {
         await _firestore.collection('movements').doc(id).delete();
       } else {
-        throw AppError.permission('No tienes permisos para eliminar este movimiento');
+        throw AppError.validation('No tienes permisos para eliminar este movimiento');
       }
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);

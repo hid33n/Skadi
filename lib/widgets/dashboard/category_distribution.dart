@@ -19,7 +19,7 @@ class CategoryDistribution extends StatelessWidget {
         if (productVM.error != null || categoryVM.error != null) {
           return Center(
             child: Text(
-              'Error: ${productVM.error?.message ?? categoryVM.error?.message}',
+              'Error: ${productVM.error ?? categoryVM.error}',
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           );

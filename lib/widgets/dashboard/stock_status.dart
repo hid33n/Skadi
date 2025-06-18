@@ -26,15 +26,13 @@ class StockStatus extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  productVM.error!.message,
+                  productVM.error!,
                   style: const TextStyle(fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
               ],
             ),
           );
-        if (productVM.error != null && productVM.errorMessage != null) {
-          return Center(child: Text('Error: ${productVM.errorMessage}'));
         }
 
         final totalProducts = productVM.products.length;

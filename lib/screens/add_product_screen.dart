@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../models/product.dart';
-import '../models/category.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
 import '../viewmodels/organization_viewmodel.dart';
-import '../services/auth_service.dart';
-import '../widgets/mobile_navigation.dart';
 import '../utils/error_handler.dart';
+import '../widgets/custom_text_field.dart';
+import '../widgets/custom_button.dart';
+import '../widgets/loading_overlay.dart';
+import '../widgets/mobile_navigation.dart';
 import 'home_screen.dart';
 
 class AddProductScreen extends StatefulWidget {

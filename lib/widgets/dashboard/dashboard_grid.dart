@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../viewmodels/dashboard_viewmodel.dart';
-import '../../viewmodels/product_viewmodel.dart';
-import '../../viewmodels/category_viewmodel.dart';
-import '../../viewmodels/sale_viewmodel.dart';
+import '../../viewmodels/organization_viewmodel.dart';
 import '../../screens/home_screen.dart';
 import '../../screens/add_sale_screen.dart';
 import '../../screens/add_product_screen.dart';
@@ -57,22 +55,32 @@ class DashboardGrid extends StatelessWidget {
   }
 
   Widget _buildSalesSummary(BuildContext context) {
-    return Consumer<SaleViewModel>(
-      builder: (context, saleVM, _) {
+    return Consumer<DashboardViewModel>(
+      builder: (context, dashboardVM, _) {
         return StateHandlerWidget(
-          isLoading: saleVM.isLoading,
-          error: saleVM.error?.message,
-          onRetry: () => saleVM.loadSales(),
-          child: _buildSalesSummaryContent(context, saleVM),
+          isLoading: dashboardVM.isLoading,
+          error: dashboardVM.error,
+          onRetry: () => dashboardVM.loadDashboardData(),
+          child: _buildSalesSummaryContent(context, dashboardVM),
         );
       },
     );
   }
 
-  Widget _buildSalesSummaryContent(BuildContext context, SaleViewModel saleVM) {
-    final todaySales = _calculateTodaySales(saleVM.sales);
-    final weekSales = _calculateWeekSales(saleVM.sales);
-    final totalSales = saleVM.totalSales;
+  Widget _buildSalesSummaryContent(BuildContext context, DashboardViewModel dashboardVM) {
+    final dashboardData = dashboardVM.dashboardData;
+    if (dashboardData == null) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Center(child: Text('No hay datos disponibles')),
+        ),
+      );
+    }
+
+    final todaySales = _calculateTodaySales(dashboardData.sales);
+    final weekSales = _calculateWeekSales(dashboardData.sales);
+    final totalSales = dashboardData.totalRevenue;
 
     final currencyFormat = NumberFormat.currency(
       locale: 'es_MX',
@@ -333,13 +341,13 @@ class DashboardGrid extends StatelessWidget {
   }
 
   Widget _buildLowStockProducts(BuildContext context) {
-    return Consumer<ProductViewModel>(
-      builder: (context, productVM, _) {
+    return Consumer<DashboardViewModel>(
+      builder: (context, dashboardVM, _) {
         return StateHandlerWidget(
-          isLoading: productVM.isLoading,
-          error: productVM.error?.message,
-          isEmpty: productVM.products.isEmpty,
-          onRetry: () => productVM.loadProducts(),
+          isLoading: dashboardVM.isLoading,
+          error: dashboardVM.error,
+          isEmpty: dashboardVM.products.isEmpty,
+          onRetry: () => dashboardVM.loadProducts(),
           emptyMessage: 'No hay productos registrados',
           emptyTitle: 'Sin Productos',
           emptyIcon: Icons.inventory_2_outlined,
@@ -352,14 +360,14 @@ class DashboardGrid extends StatelessWidget {
               ),
             );
           },
-          child: _buildLowStockProductsContent(context, productVM),
+          child: _buildLowStockProductsContent(context, dashboardVM),
         );
       },
     );
   }
 
-  Widget _buildLowStockProductsContent(BuildContext context, ProductViewModel productVM) {
-    final lowStockProducts = productVM.getLowStockProducts();
+  Widget _buildLowStockProductsContent(BuildContext context, DashboardViewModel dashboardVM) {
+    final lowStockProducts = dashboardVM.getLowStockProductsLocal();
 
     if (lowStockProducts.isEmpty) {
       return const Card(
@@ -449,27 +457,24 @@ class DashboardGrid extends StatelessWidget {
   }
 
   Widget _buildTopSellingProducts(BuildContext context) {
-    return Consumer2<SaleViewModel, ProductViewModel>(
-      builder: (context, saleVM, productVM, _) {
+    return Consumer<DashboardViewModel>(
+      builder: (context, dashboardVM, _) {
         return StateHandlerWidget(
-          isLoading: saleVM.isLoading || productVM.isLoading,
-          error: saleVM.error?.message ?? productVM.error?.message,
-          isEmpty: saleVM.sales.isEmpty || productVM.products.isEmpty,
-          onRetry: () {
-            saleVM.loadSales();
-            productVM.loadProducts();
-          },
+          isLoading: dashboardVM.isLoading,
+          error: dashboardVM.error,
+          isEmpty: dashboardVM.sales.isEmpty || dashboardVM.products.isEmpty,
+          onRetry: () => dashboardVM.loadDashboardData(),
           emptyMessage: 'No hay datos de ventas disponibles',
           emptyTitle: 'Sin Datos',
           emptyIcon: Icons.analytics_outlined,
-          child: _buildTopSellingProductsContent(context, saleVM, productVM),
+          child: _buildTopSellingProductsContent(context, dashboardVM),
         );
       },
     );
   }
 
-  Widget _buildTopSellingProductsContent(BuildContext context, SaleViewModel saleVM, ProductViewModel productVM) {
-    final topProducts = _getTopSellingProducts(saleVM.sales, productVM.products);
+  Widget _buildTopSellingProductsContent(BuildContext context, DashboardViewModel dashboardVM) {
+    final topProducts = _getTopSellingProducts(dashboardVM.sales, dashboardVM.products);
 
     if (topProducts.isEmpty) {
       return const Card(

@@ -94,7 +94,7 @@ class OrganizationService {
         'totalProducts': productsSnapshot.docs.length,
         'totalSales': salesSnapshot.docs.length,
         'activeUsers': usersSnapshot.docs
-            .where((doc) => doc.data()['status'] == 'active')
+            .where((doc) => doc.data()['isActive'] == true)
             .length,
       };
     } catch (e, stackTrace) {

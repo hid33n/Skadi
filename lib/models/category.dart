@@ -41,6 +41,7 @@ class Category {
     return {
       'name': name,
       'description': description,
+      'organizationId': organizationId,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };

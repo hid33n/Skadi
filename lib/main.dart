@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
-import 'services/firestore_service.dart';
+import 'services/user_data_service.dart';
 import 'viewmodels/product_viewmodel.dart';
 import 'viewmodels/category_viewmodel.dart';
 import 'viewmodels/movement_viewmodel.dart';
@@ -40,8 +40,8 @@ class MyApp extends StatelessWidget {
         Provider<AuthService>(
           create: (_) => AuthService(),
         ),
-        Provider<FirestoreService>(
-          create: (context) => FirestoreService(context.read<AuthService>()),
+        Provider<UserDataService>(
+          create: (_) => UserDataService(),
         ),
         // ViewModels
         ChangeNotifierProvider<ProductViewModel>(
@@ -51,13 +51,13 @@ class MyApp extends StatelessWidget {
           create: (_) => CategoryViewModel(),
         ),
         ChangeNotifierProvider<MovementViewModel>(
-          create: (context) => MovementViewModel(context.read<FirestoreService>()),
+          create: (_) => MovementViewModel(),
         ),
         ChangeNotifierProvider<SaleViewModel>(
-          create: (context) => SaleViewModel(context.read<FirestoreService>()),
+          create: (_) => SaleViewModel(),
         ),
         ChangeNotifierProvider<DashboardViewModel>(
-          create: (context) => DashboardViewModel(context.read<FirestoreService>()),
+          create: (_) => DashboardViewModel(),
         ),
         ChangeNotifierProvider<ThemeViewModel>(
           create: (_) => ThemeViewModel(),

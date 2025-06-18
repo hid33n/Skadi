@@ -1,5 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
+/// Roles de usuario en la aplicación
 enum UserRole {
   owner,
   admin,
@@ -8,105 +9,56 @@ enum UserRole {
   viewer,
 }
 
-enum UserStatus {
-  active,
-  inactive,
-  suspended,
-  pending,
-}
-
+/// Modelo para representar el perfil de un usuario
 class UserProfile {
   final String id;
   final String email;
-  final String? firstName;
-  final String? lastName;
+  final String firstName;
+  final String lastName;
   final String? phone;
   final String? avatarUrl;
-  final String organizationId;
   final UserRole role;
-  final UserStatus status;
-  final List<String> permissions;
-  final Map<String, dynamic>? preferences;
-  final DateTime? lastLoginAt;
+  final String organizationId;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final String? invitedBy;
+  final bool isActive;
+  final Map<String, dynamic>? preferences;
+  final List<String> permissions;
 
   UserProfile({
     required this.id,
     required this.email,
-    this.firstName,
-    this.lastName,
+    required this.firstName,
+    required this.lastName,
     this.phone,
     this.avatarUrl,
+    required this.role,
     required this.organizationId,
-    this.role = UserRole.employee,
-    this.status = UserStatus.pending,
-    this.permissions = const [],
-    this.preferences,
-    this.lastLoginAt,
     required this.createdAt,
     required this.updatedAt,
-    this.invitedBy,
+    this.isActive = true,
+    this.preferences,
+    this.permissions = const [],
   });
 
-  String get fullName {
-    if (firstName != null && lastName != null) {
-      return '$firstName $lastName';
-    } else if (firstName != null) {
-      return firstName!;
-    } else if (lastName != null) {
-      return lastName!;
-    } else {
-      return email;
-    }
-  }
-
-  String get displayName {
-    return fullName;
-  }
-
-  bool get isOwner => role == UserRole.owner;
-  bool get isAdmin => role == UserRole.admin || role == UserRole.owner;
-  bool get isManager => role == UserRole.manager || isAdmin;
-  bool get isActive => status == UserStatus.active;
-
-  bool hasPermission(String permission) {
-    return permissions.contains(permission) || isAdmin;
-  }
-
-  bool canManageUsers() {
-    return isAdmin || hasPermission('manage_users');
-  }
-
-  bool canManageProducts() {
-    return isManager || hasPermission('manage_products');
-  }
-
-  bool canViewReports() {
-    return isManager || hasPermission('view_reports');
-  }
-
-  bool canManageSales() {
-    return isManager || hasPermission('manage_sales');
-  }
+  String get fullName => '$firstName $lastName';
+  String get displayName => fullName.isNotEmpty ? fullName : email;
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'email': email,
       'firstName': firstName,
       'lastName': lastName,
       'phone': phone,
       'avatarUrl': avatarUrl,
-      'organizationId': organizationId,
       'role': role.name,
-      'status': status.name,
-      'permissions': permissions,
-      'preferences': preferences,
-      'lastLoginAt': lastLoginAt?.toIso8601String(),
+      'organizationId': organizationId,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
-      'invitedBy': invitedBy,
+      'isActive': isActive,
+      'preferences': preferences,
+      'permissions': permissions,
     };
   }
 
@@ -114,27 +66,20 @@ class UserProfile {
     return UserProfile(
       id: id,
       email: map['email'] as String,
-      firstName: map['firstName'] as String?,
-      lastName: map['lastName'] as String?,
+      firstName: map['firstName'] as String,
+      lastName: map['lastName'] as String,
       phone: map['phone'] as String?,
       avatarUrl: map['avatarUrl'] as String?,
-      organizationId: map['organizationId'] as String,
       role: UserRole.values.firstWhere(
-        (e) => e.name == map['role'],
-        orElse: () => UserRole.employee,
+        (role) => role.name == map['role'],
+        orElse: () => UserRole.viewer,
       ),
-      status: UserStatus.values.firstWhere(
-        (e) => e.name == map['status'],
-        orElse: () => UserStatus.pending,
-      ),
-      permissions: List<String>.from(map['permissions'] ?? []),
-      preferences: map['preferences'] as Map<String, dynamic>?,
-      lastLoginAt: map['lastLoginAt'] != null 
-        ? DateTime.parse(map['lastLoginAt'] as String)
-        : null,
+      organizationId: map['organizationId'] as String,
       createdAt: DateTime.parse(map['createdAt'] as String),
       updatedAt: DateTime.parse(map['updatedAt'] as String),
-      invitedBy: map['invitedBy'] as String?,
+      isActive: map['isActive'] as bool? ?? true,
+      preferences: map['preferences'] as Map<String, dynamic>?,
+      permissions: List<String>.from(map['permissions'] ?? []),
     );
   }
 
@@ -145,15 +90,13 @@ class UserProfile {
     String? lastName,
     String? phone,
     String? avatarUrl,
-    String? organizationId,
     UserRole? role,
-    UserStatus? status,
-    List<String>? permissions,
-    Map<String, dynamic>? preferences,
-    DateTime? lastLoginAt,
+    String? organizationId,
     DateTime? createdAt,
     DateTime? updatedAt,
-    String? invitedBy,
+    bool? isActive,
+    Map<String, dynamic>? preferences,
+    List<String>? permissions,
   }) {
     return UserProfile(
       id: id ?? this.id,
@@ -162,15 +105,54 @@ class UserProfile {
       lastName: lastName ?? this.lastName,
       phone: phone ?? this.phone,
       avatarUrl: avatarUrl ?? this.avatarUrl,
-      organizationId: organizationId ?? this.organizationId,
       role: role ?? this.role,
-      status: status ?? this.status,
-      permissions: permissions ?? this.permissions,
-      preferences: preferences ?? this.preferences,
-      lastLoginAt: lastLoginAt ?? this.lastLoginAt,
+      organizationId: organizationId ?? this.organizationId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      invitedBy: invitedBy ?? this.invitedBy,
+      isActive: isActive ?? this.isActive,
+      preferences: preferences ?? this.preferences,
+      permissions: permissions ?? this.permissions,
     );
+  }
+
+  @override
+  String toString() {
+    return 'UserProfile(id: $id, email: $email, firstName: $firstName, lastName: $lastName, phone: $phone, avatarUrl: $avatarUrl, role: $role, organizationId: $organizationId, createdAt: $createdAt, updatedAt: $updatedAt, isActive: $isActive, preferences: $preferences, permissions: $permissions)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is UserProfile &&
+        other.id == id &&
+        other.email == email &&
+        other.firstName == firstName &&
+        other.lastName == lastName &&
+        other.phone == phone &&
+        other.avatarUrl == avatarUrl &&
+        other.role == role &&
+        other.organizationId == organizationId &&
+        other.createdAt == createdAt &&
+        other.updatedAt == updatedAt &&
+        other.isActive == isActive &&
+        mapEquals(other.preferences, preferences) &&
+        listEquals(other.permissions, permissions);
+  }
+
+  @override
+  int get hashCode {
+    return id.hashCode ^
+        email.hashCode ^
+        firstName.hashCode ^
+        lastName.hashCode ^
+        phone.hashCode ^
+        avatarUrl.hashCode ^
+        role.hashCode ^
+        organizationId.hashCode ^
+        createdAt.hashCode ^
+        updatedAt.hashCode ^
+        isActive.hashCode ^
+        preferences.hashCode ^
+        permissions.hashCode;
   }
 } 

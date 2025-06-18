@@ -57,7 +57,7 @@ class SaleService {
       if (sale != null) {
         await _firestore.collection('sales').doc(id).delete();
       } else {
-        throw AppError.permission('No tienes permisos para eliminar esta venta');
+        throw AppError.validation('No tienes permisos para eliminar esta venta');
       }
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);

@@ -89,12 +89,12 @@ class UserService {
       final user = UserProfile(
         id: '', // Se asignará al crear
         email: email,
+        firstName: 'Usuario',
+        lastName: 'Invitado',
         organizationId: organizationId,
         role: role,
-        status: UserStatus.pending,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        invitedBy: invitedBy,
       );
 
       await createUser(user);
@@ -108,7 +108,7 @@ class UserService {
   Future<void> activateUser(String userId) async {
     try {
       await _firestore.collection('users').doc(userId).update({
-        'status': UserStatus.active.name,
+        'isActive': true,
         'updatedAt': DateTime.now().toIso8601String(),
       });
     } catch (e, stackTrace) {
@@ -120,7 +120,7 @@ class UserService {
   Future<void> suspendUser(String userId) async {
     try {
       await _firestore.collection('users').doc(userId).update({
-        'status': UserStatus.suspended.name,
+        'isActive': false,
         'updatedAt': DateTime.now().toIso8601String(),
       });
     } catch (e, stackTrace) {
@@ -132,7 +132,6 @@ class UserService {
   Future<void> updateLastLogin(String userId) async {
     try {
       await _firestore.collection('users').doc(userId).update({
-        'lastLoginAt': DateTime.now().toIso8601String(),
         'updatedAt': DateTime.now().toIso8601String(),
       });
     } catch (e, stackTrace) {
@@ -146,7 +145,10 @@ class UserService {
       final user = await getUser(userId);
       if (user == null) return false;
       
-      return user.hasPermission(permission);
+      // Verificar si el usuario tiene el permiso específico
+      return user.permissions.contains(permission) || 
+             user.role == UserRole.owner || 
+             user.role == UserRole.admin;
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
     }
@@ -160,11 +162,10 @@ class UserService {
       return {
         'total': users.length,
         'active': users.where((u) => u.isActive).length,
-        'pending': users.where((u) => u.status == UserStatus.pending).length,
-        'suspended': users.where((u) => u.status == UserStatus.suspended).length,
-        'owners': users.where((u) => u.isOwner).length,
-        'admins': users.where((u) => u.isAdmin).length,
-        'managers': users.where((u) => u.isManager).length,
+        'inactive': users.where((u) => !u.isActive).length,
+        'owners': users.where((u) => u.role == UserRole.owner).length,
+        'admins': users.where((u) => u.role == UserRole.admin).length,
+        'managers': users.where((u) => u.role == UserRole.manager).length,
         'employees': users.where((u) => u.role == UserRole.employee).length,
         'viewers': users.where((u) => u.role == UserRole.viewer).length,
       };
