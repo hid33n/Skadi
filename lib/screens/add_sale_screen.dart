@@ -137,8 +137,8 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (productVM.error != null && productVM.error!.isNotEmpty) {
-            return Center(child: Text('Error: ${productVM.error}'));
+          if (productVM.error != null && productVM.errorMessage != null) {
+            return Center(child: Text('Error: ${productVM.errorMessage}'));
           }
 
           final filteredProducts = _getFilteredProducts(productVM.products);
