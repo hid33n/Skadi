@@ -150,7 +150,7 @@ class DashboardCharts extends StatelessWidget {
                       1.2,
               barTouchData: BarTouchData(
                 touchTooltipData: BarTouchTooltipData(
-                  tooltipBgColor: Colors.blueGrey,
+                  getTooltipColor: (touchedSpot) => Colors.blueGrey,
                   getTooltipItem: (group, groupIndex, rod, rodIndex) {
                     return BarTooltipItem(
                       '${rod.toY.toInt()} unidades',

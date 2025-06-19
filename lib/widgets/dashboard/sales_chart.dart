@@ -73,7 +73,7 @@ class SalesChart extends StatelessWidget {
             minY: 0,
             lineTouchData: LineTouchData(
               touchTooltipData: LineTouchTooltipData(
-                tooltipBgColor: Theme.of(context).colorScheme.surface,
+                getTooltipColor: (touchedSpot) => Theme.of(context).colorScheme.surface,
                 getTooltipItems: (touchedSpots) {
                   return touchedSpots.map((spot) {
                     final index = spot.x.toInt();

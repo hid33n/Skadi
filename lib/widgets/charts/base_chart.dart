@@ -194,7 +194,7 @@ class BarChartWidget extends StatelessWidget {
         barTouchData: BarTouchData(
           enabled: true,
           touchTooltipData: BarTouchTooltipData(
-            tooltipBgColor: Theme.of(context).colorScheme.surface,
+            getTooltipColor: (touchedSpot) => Theme.of(context).colorScheme.surface,
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               return BarTooltipItem(
                 '${rod.toY.round()}',
