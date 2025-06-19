@@ -14,6 +14,7 @@ import '../widgets/mobile_navigation.dart';
 import '../widgets/advanced_search.dart';
 import '../widgets/responsive_grid.dart';
 import '../widgets/error_widgets.dart';
+import '../widgets/skeleton_loading.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -202,7 +203,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 child: Consumer<ProductViewModel>(
                   builder: (context, productVM, child) {
                     if (_isLoading || productVM.isLoading) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const ProductListSkeleton(itemCount: 8);
                     }
 
                     if (_error != null || productVM.error != null) {
@@ -511,7 +512,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
   Widget _buildProductGrid() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const ProductGridSkeleton(itemCount: 8);
     }
 
     if (_error != null) {
