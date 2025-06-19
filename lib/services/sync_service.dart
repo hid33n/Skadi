@@ -160,13 +160,17 @@ class SyncService {
     _updateProgress('Sincronizando cambios locales...');
 
     final pendingItems = await _localStorage.getPendingSyncItems();
+    print('🔄 SyncService: Elementos pendientes de sincronización: ${pendingItems.length}');
     
     for (final item in pendingItems) {
       try {
+        print('🔄 SyncService: Procesando elemento: ${item['type']} - ${item['action']}');
         await _processSyncItem(item, userProfile);
         await _localStorage.markSyncItemComplete(item['id']);
         _updateProgress('Elemento sincronizado: ${item['type']}');
+        print('✅ SyncService: Elemento procesado exitosamente: ${item['type']}');
       } catch (e) {
+        print('❌ SyncService: Error procesando elemento ${item['type']}: $e');
         await _localStorage.markSyncItemFailed(item['id'], e.toString());
         _updateProgress('Error sincronizando: ${item['type']}');
       }
@@ -202,34 +206,76 @@ class SyncService {
 
   /// Procesar sincronización de productos
   Future<void> _processProductSync(String action, Map<String, dynamic> data, UserProfile userProfile) async {
-    final product = Product.fromMap(data, data['id']);
+    print('🔄 SyncService: Procesando producto - Action: $action, Data: $data');
     
     switch (action) {
       case 'create':
-        await _userDataService.addProduct(userProfile.id, product);
+        final productId = data['id'] as String? ?? '';
+        final product = Product.fromMap(data, productId);
+        print('🔄 SyncService: Procesando producto - Action: $action, ID: $productId, Name: ${product.name}');
+        
+        print('🔄 SyncService: Creando producto en Firebase...');
+        final newProductId = await _userDataService.addProduct(userProfile.id, product);
+        print('✅ SyncService: Producto creado en Firebase con ID: $newProductId');
+        
+        // Actualizar el ID local con el ID del servidor si es diferente
+        if (newProductId != productId && productId.isNotEmpty) {
+          await _localStorage.updateProductId(productId, newProductId);
+          print('🔄 SyncService: ID de producto actualizado localmente: $productId -> $newProductId');
+        }
         break;
       case 'update':
+        final productId = data['id'] as String? ?? '';
+        final product = Product.fromMap(data, productId);
+        print('🔄 SyncService: Procesando producto - Action: $action, ID: $productId, Name: ${product.name}');
+        
+        print('🔄 SyncService: Actualizando producto en Firebase...');
         await _userDataService.updateProduct(userProfile.id, product.id, product);
+        print('✅ SyncService: Producto actualizado en Firebase');
         break;
       case 'delete':
-        await _userDataService.deleteProduct(userProfile.id, product.id);
+        final productId = data['id'] as String? ?? '';
+        print('🔄 SyncService: Procesando producto - Action: $action, ID: $productId');
+        
+        if (productId.isNotEmpty) {
+          print('🔄 SyncService: Eliminando producto en Firebase...');
+          await _userDataService.deleteProduct(userProfile.id, productId);
+          print('✅ SyncService: Producto eliminado en Firebase');
+        } else {
+          print('❌ SyncService: Error - ID de producto vacío para eliminación');
+        }
         break;
     }
   }
 
   /// Procesar sincronización de categorías
   Future<void> _processCategorySync(String action, Map<String, dynamic> data, UserProfile userProfile) async {
-    final category = app_category.Category.fromMap(data, data['id']);
+    final categoryId = data['id'] as String? ?? '';
+    final category = app_category.Category.fromMap(data, categoryId);
+    
+    print('🔄 SyncService: Procesando categoría - Action: $action, ID: $categoryId, Name: ${category.name}');
     
     switch (action) {
       case 'create':
-        await _userDataService.addCategory(userProfile.id, category);
+        print('🔄 SyncService: Creando categoría en Firebase...');
+        final newCategoryId = await _userDataService.addCategory(userProfile.id, category);
+        print('✅ SyncService: Categoría creada en Firebase con ID: $newCategoryId');
+        
+        // Actualizar el ID local con el ID del servidor si es diferente
+        if (newCategoryId != categoryId && categoryId.isNotEmpty) {
+          await _localStorage.updateCategoryId(categoryId, newCategoryId);
+          print('🔄 SyncService: ID de categoría actualizado localmente: $categoryId -> $newCategoryId');
+        }
         break;
       case 'update':
+        print('🔄 SyncService: Actualizando categoría en Firebase...');
         await _userDataService.updateCategory(userProfile.id, category.id, category);
+        print('✅ SyncService: Categoría actualizada en Firebase');
         break;
       case 'delete':
+        print('🔄 SyncService: Eliminando categoría en Firebase...');
         await _userDataService.deleteCategory(userProfile.id, category.id);
+        print('✅ SyncService: Categoría eliminada en Firebase');
         break;
     }
   }
@@ -288,18 +334,37 @@ class SyncService {
   Future<String> createProduct(Product product) async {
     if (!_isInitialized) await initialize();
 
+    print('🔄 SyncService: Creando producto: ${product.name}');
+    print('🔄 SyncService: Organization ID: ${product.organizationId}');
+    print('🔄 SyncService: Product ID local: ${product.id}');
+
     // Guardar localmente primero
     await _localStorage.saveProduct(product);
+    print('✅ SyncService: Producto guardado localmente');
     
     // Agregar a cola de sincronización
     await _localStorage.addToSyncQueue('product', 'create', product.toMap());
+    print('✅ SyncService: Producto agregado a cola de sincronización');
     
     // Intentar sincronizar inmediatamente si hay conexión
     if (_localStorage.isOnline) {
-      syncData();
+      print('🔄 SyncService: Iniciando sincronización inmediata...');
+      await syncData(); // Esperar a que termine la sincronización
+      print('✅ SyncService: Sincronización completada');
+      
+      // Obtener el producto actualizado desde el cache local
+      final products = await _localStorage.getProducts(product.organizationId);
+      final updatedProduct = products.firstWhere(
+        (p) => p.name == product.name && p.organizationId == product.organizationId,
+        orElse: () => product,
+      );
+      
+      print('✅ SyncService: Producto final con ID: ${updatedProduct.id}');
+      return updatedProduct.id;
+    } else {
+      print('⚠️ SyncService: Sin conexión, producto guardado en cola de sincronización');
+      return product.id;
     }
-    
-    return product.id;
   }
 
   /// Actualizar producto (con sincronización)
@@ -322,37 +387,68 @@ class SyncService {
   Future<void> deleteProduct(String productId) async {
     if (!_isInitialized) await initialize();
 
+    print('🔄 SyncService: Eliminando producto con ID: $productId');
+
     // Eliminar localmente
     await _localStorage.deleteProduct(productId);
+    print('✅ SyncService: Producto eliminado localmente');
     
     // Agregar a cola de sincronización
     await _localStorage.addToSyncQueue('product', 'delete', {'id': productId});
+    print('✅ SyncService: Producto agregado a cola de sincronización');
     
     // Intentar sincronizar inmediatamente si hay conexión
     if (_localStorage.isOnline) {
-      syncData();
+      print('🔄 SyncService: Iniciando sincronización inmediata...');
+      await syncData(); // Esperar a que termine la sincronización
+      print('✅ SyncService: Sincronización completada');
+    } else {
+      print('⚠️ SyncService: Sin conexión, eliminación guardada en cola de sincronización');
     }
   }
 
   /// Obtener productos (desde cache local)
   Future<List<Product>> getProducts(String organizationId) async {
     if (!_isInitialized) await initialize();
-    return await _localStorage.getProducts(organizationId);
+    
+    print('🔄 SyncService: Obteniendo productos para org: $organizationId');
+    final products = await _localStorage.getProducts(organizationId);
+    print('📊 SyncService: Productos en cache local: ${products.length}');
+    
+    // Si no hay productos en cache, intentar sincronizar desde servidor
+    if (products.isEmpty && _localStorage.isOnline) {
+      print('🔄 SyncService: Cache vacío, sincronizando desde servidor...');
+      await syncData();
+      final syncedProducts = await _localStorage.getProducts(organizationId);
+      print('📊 SyncService: Productos después de sincronización: ${syncedProducts.length}');
+      return syncedProducts;
+    }
+    
+    return products;
   }
 
   /// Crear categoría (con sincronización)
   Future<String> createCategory(app_category.Category category) async {
     if (!_isInitialized) await initialize();
 
+    print('🔄 SyncService: Creando categoría: ${category.name}');
+    print('🔄 SyncService: Organization ID: ${category.organizationId}');
+
     // Guardar localmente primero
     await _localStorage.saveCategory(category);
+    print('✅ SyncService: Categoría guardada localmente');
     
     // Agregar a cola de sincronización
     await _localStorage.addToSyncQueue('category', 'create', category.toMap());
+    print('✅ SyncService: Categoría agregada a cola de sincronización');
     
     // Intentar sincronizar inmediatamente si hay conexión
     if (_localStorage.isOnline) {
-      syncData();
+      print('🔄 SyncService: Iniciando sincronización inmediata...');
+      await syncData(); // Esperar a que termine la sincronización
+      print('✅ SyncService: Sincronización completada');
+    } else {
+      print('⚠️ SyncService: Sin conexión, categoría guardada en cola de sincronización');
     }
     
     return category.id;
@@ -393,7 +489,21 @@ class SyncService {
   /// Obtener categorías (desde cache local)
   Future<List<app_category.Category>> getCategories(String organizationId) async {
     if (!_isInitialized) await initialize();
-    return await _localStorage.getCategories(organizationId);
+    
+    print('🔄 SyncService: Obteniendo categorías para org: $organizationId');
+    final categories = await _localStorage.getCategories(organizationId);
+    print('📊 SyncService: Categorías en cache local: ${categories.length}');
+    
+    // Si no hay categorías en cache, intentar sincronizar desde servidor
+    if (categories.isEmpty && _localStorage.isOnline) {
+      print('🔄 SyncService: Cache vacío, sincronizando desde servidor...');
+      await syncData();
+      final syncedCategories = await _localStorage.getCategories(organizationId);
+      print('📊 SyncService: Categorías después de sincronización: ${syncedCategories.length}');
+      return syncedCategories;
+    }
+    
+    return categories;
   }
 
   /// Crear venta (con sincronización)

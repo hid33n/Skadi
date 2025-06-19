@@ -58,14 +58,19 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     });
 
     try {
+      print('🔄 OrganizationSetupScreen: Iniciando creación de organización');
+      
       final viewModel = context.read<OrganizationViewModel>();
       final authService = context.read<AuthService>();
       final currentUser = authService.currentUser;
 
       if (currentUser == null) {
+        print('❌ OrganizationSetupScreen: No hay usuario autenticado');
         context.showError('No hay usuario autenticado');
         return;
       }
+
+      print('✅ OrganizationSetupScreen: Usuario autenticado - ID: ${currentUser.uid}');
 
       final organization = Organization(
         id: '', // Se asignará al crear
@@ -89,9 +94,14 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
         },
       );
 
+      print('🔄 OrganizationSetupScreen: Organización creada localmente: ${organization.name}');
+      print('🔄 OrganizationSetupScreen: Owner ID: ${organization.ownerId}');
+
       final organizationId = await viewModel.createOrganization(organization);
       
       if (organizationId != null) {
+        print('✅ OrganizationSetupScreen: Organización creada exitosamente con ID: $organizationId');
+        
         // Crear el usuario owner
         final owner = UserProfile(
           id: currentUser.uid,
@@ -106,6 +116,8 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
           updatedAt: DateTime.now(),
         );
 
+        print('🔄 OrganizationSetupScreen: Perfil de usuario creado localmente');
+
         // Actualizar el usuario actual con la información de la organización
         await viewModel.loadCurrentUser(currentUser.uid);
 
@@ -119,13 +131,17 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
           Navigator.of(context).pushReplacementNamed('/home');
         }
       } else {
+        print('❌ OrganizationSetupScreen: Error al crear organización - organizationId es null');
         if (mounted) {
-          context.showError(viewModel.error ?? 'Error al crear la organización');
+          final errorMessage = viewModel.error ?? 'Error al crear la organización';
+          print('❌ OrganizationSetupScreen: Error del ViewModel: $errorMessage');
+          context.showError(errorMessage);
         }
       }
     } catch (e) {
+      print('❌ OrganizationSetupScreen: Excepción al crear organización: $e');
       if (mounted) {
-        context.showError(e);
+        context.showError('Error inesperado: $e');
       }
     } finally {
       if (mounted) {

@@ -25,10 +25,19 @@ class CategoryViewModel extends ChangeNotifier {
     _clearError();
 
     try {
+      print('🔄 Cargando categorías para organización: $organizationId');
+      
       // Usar SyncService que maneja cache local y sincronización
       _categories = await _syncService.getCategories(organizationId);
+      
+      print('📊 Categorías cargadas: ${_categories.length}');
+      for (var category in _categories) {
+        print('  - ${category.name} (ID: ${category.id})');
+      }
+      
       await _loadCategoryStats(organizationId);
     } catch (e) {
+      print('❌ Error cargando categorías: $e');
       _setError(AppError.fromException(e));
     } finally {
       _setLoading(false);
@@ -54,17 +63,56 @@ class CategoryViewModel extends ChangeNotifier {
     _setLoading(true);
     _clearError();
 
+    // Mecanismo de reintento
+    int retryCount = 0;
+    const maxRetries = 3;
+    
     try {
-      // Usar SyncService que maneja cache local y sincronización
-      final categoryId = await _syncService.createCategory(category);
-      if (categoryId.isNotEmpty) {
-        // Recargar categorías
-        await loadCategories(category.organizationId);
-        return true;
+      while (retryCount < maxRetries) {
+        try {
+          print('🔄 CategoryViewModel: Intento ${retryCount + 1} de crear categoría: ${category.name}');
+          print('🔄 CategoryViewModel: Organization ID: ${category.organizationId}');
+          
+          // Verificar que la organización ID no esté vacía
+          if (category.organizationId.isEmpty || category.organizationId == 'organization') {
+            throw AppError.validation('ID de organización inválido: ${category.organizationId}');
+          }
+          
+          // Generar ID único para la categoría
+          final categoryWithId = category.copyWith(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+          );
+          
+          print('🔄 CategoryViewModel: Categoría con ID generado: ${categoryWithId.id}');
+          
+          // Usar SyncService que maneja cache local y sincronización
+          final categoryId = await _syncService.createCategory(categoryWithId);
+          
+          print('✅ CategoryViewModel: Categoría creada con ID: $categoryId');
+          
+          if (categoryId.isNotEmpty) {
+            // Recargar categorías
+            await loadCategories(category.organizationId);
+            return true;
+          } else {
+            throw AppError.validation('No se pudo crear la categoría: ID vacío retornado');
+          }
+        } catch (e) {
+          retryCount++;
+          print('❌ CategoryViewModel: Error en intento $retryCount: $e');
+          
+          if (retryCount >= maxRetries) {
+            print('❌ CategoryViewModel: Máximo de reintentos alcanzado');
+            _setError(AppError.fromException(e));
+            return false;
+          }
+          
+          // Esperar antes del siguiente intento (backoff exponencial)
+          await Future.delayed(Duration(milliseconds: 500 * retryCount));
+          print('🔄 CategoryViewModel: Reintentando en ${500 * retryCount}ms...');
+        }
       }
-      return false;
-    } catch (e) {
-      _setError(AppError.fromException(e));
+      
       return false;
     } finally {
       _setLoading(false);

@@ -24,16 +24,29 @@ class ProductViewModel extends ChangeNotifier {
     _clearError();
 
     try {
+      print('🔄 ProductViewModel: Cargando productos para organización: $organizationId');
+      
       final currentUser = _authService.currentUser;
       if (currentUser == null) {
+        print('❌ ProductViewModel: Usuario no autenticado');
         _setError('Usuario no autenticado');
         return;
       }
 
+      print('✅ ProductViewModel: Usuario autenticado - ID: ${currentUser.uid}');
+
       // Usar SyncService que maneja cache local y sincronización
       _products = await _syncService.getProducts(organizationId);
+      
+      print('📊 ProductViewModel: Productos cargados: ${_products.length}');
+      for (var product in _products) {
+        print('  - ${product.name} (ID: ${product.id}, Org: ${product.organizationId})');
+      }
+      
       await _loadProductStats();
+      print('✅ ProductViewModel: Estadísticas cargadas');
     } catch (e) {
+      print('❌ ProductViewModel: Error cargando productos: $e');
       _setError(e.toString());
     } finally {
       _setLoading(false);
@@ -60,21 +73,34 @@ class ProductViewModel extends ChangeNotifier {
     _clearError();
 
     try {
+      print('🔄 ProductViewModel: Iniciando creación de producto: ${product.name}');
+      
       final currentUser = _authService.currentUser;
       if (currentUser == null) {
+        print('❌ ProductViewModel: Usuario no autenticado');
         _setError('Usuario no autenticado');
         return false;
       }
 
+      print('✅ ProductViewModel: Usuario autenticado - ID: ${currentUser.uid}');
+      print('🔄 ProductViewModel: Organization ID: ${product.organizationId}');
+
       // Usar SyncService que maneja cache local y sincronización
       final productId = await _syncService.createProduct(product);
+      
+      print('✅ ProductViewModel: Producto creado con ID: $productId');
+      
       if (productId.isNotEmpty) {
         // Recargar productos
         await loadProducts(product.organizationId);
+        print('✅ ProductViewModel: Productos recargados exitosamente');
         return true;
+      } else {
+        print('❌ ProductViewModel: ID de producto vacío retornado');
+        return false;
       }
-      return false;
     } catch (e) {
+      print('❌ ProductViewModel: Error creando producto: $e');
       _setError(e.toString());
       return false;
     } finally {
@@ -113,18 +139,28 @@ class ProductViewModel extends ChangeNotifier {
     _clearError();
 
     try {
+      print('🔄 ProductViewModel: Iniciando eliminación de producto: $id');
+      
       final currentUser = _authService.currentUser;
       if (currentUser == null) {
+        print('❌ ProductViewModel: Usuario no autenticado');
         _setError('Usuario no autenticado');
         return false;
       }
 
+      print('✅ ProductViewModel: Usuario autenticado - ID: ${currentUser.uid}');
+      print('🔄 ProductViewModel: Organization ID: $organizationId');
+
       // Usar SyncService que maneja cache local y sincronización
       await _syncService.deleteProduct(id);
+      print('✅ ProductViewModel: Producto eliminado exitosamente');
+      
       // Recargar productos
       await loadProducts(organizationId);
+      print('✅ ProductViewModel: Productos recargados exitosamente');
       return true;
     } catch (e) {
+      print('❌ ProductViewModel: Error eliminando producto: $e');
       _setError(e.toString());
       return false;
     } finally {
