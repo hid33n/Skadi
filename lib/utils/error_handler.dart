@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 /// Tipos de errores personalizados para la aplicación
 enum ErrorType {
@@ -323,6 +324,22 @@ class ErrorHandler {
     if (error.stackTrace != null) {
       debugPrint('Stack trace: ${error.stackTrace}');
     }
+    
+    // Enviar error a Sentry
+    try {
+      Sentry.captureException(
+        error.originalError ?? error,
+        stackTrace: error.stackTrace,
+        hint: Hint.withMap({
+          'error_type': error.type.name,
+          'error_code': error.code,
+          'error_message': error.message,
+        }),
+      );
+    } catch (e) {
+      // Si falla el envío a Sentry, solo logear localmente
+      debugPrint('Error enviando a Sentry: $e');
+    }
   }
 }
 
@@ -330,5 +347,109 @@ class ErrorHandler {
 extension ErrorHandlerExtension on BuildContext {
   void showError(dynamic error, {VoidCallback? onRetry}) {
     ErrorHandler().handleError(this, error, onRetry: onRetry);
+  }
+}
+
+/// Clase para capturar errores específicos de la aplicación
+class SentryErrorCapture {
+  /// Capturar error de autenticación
+  static void captureAuthError(String message, {dynamic originalError, StackTrace? stackTrace}) {
+    Sentry.captureException(
+      originalError ?? Exception(message),
+      stackTrace: stackTrace,
+      hint: Hint.withMap({
+        'error_type': 'authentication',
+        'error_message': message,
+        'context': 'auth_service',
+      }),
+    );
+  }
+
+  /// Capturar error de sincronización
+  static void captureSyncError(String message, {dynamic originalError, StackTrace? stackTrace}) {
+    Sentry.captureException(
+      originalError ?? Exception(message),
+      stackTrace: stackTrace,
+      hint: Hint.withMap({
+        'error_type': 'sync',
+        'error_message': message,
+        'context': 'sync_service',
+      }),
+    );
+  }
+
+  /// Capturar error de organización
+  static void captureOrganizationError(String message, {dynamic originalError, StackTrace? stackTrace}) {
+    Sentry.captureException(
+      originalError ?? Exception(message),
+      stackTrace: stackTrace,
+      hint: Hint.withMap({
+        'error_type': 'organization',
+        'error_message': message,
+        'context': 'organization_service',
+      }),
+    );
+  }
+
+  /// Capturar error de producto
+  static void captureProductError(String message, {dynamic originalError, StackTrace? stackTrace}) {
+    Sentry.captureException(
+      originalError ?? Exception(message),
+      stackTrace: stackTrace,
+      hint: Hint.withMap({
+        'error_type': 'product',
+        'error_message': message,
+        'context': 'product_service',
+      }),
+    );
+  }
+
+  /// Capturar error de venta
+  static void captureSaleError(String message, {dynamic originalError, StackTrace? stackTrace}) {
+    Sentry.captureException(
+      originalError ?? Exception(message),
+      stackTrace: stackTrace,
+      hint: Hint.withMap({
+        'error_type': 'sale',
+        'error_message': message,
+        'context': 'sale_service',
+      }),
+    );
+  }
+
+  /// Capturar error de red
+  static void captureNetworkError(String message, {dynamic originalError, StackTrace? stackTrace}) {
+    Sentry.captureException(
+      originalError ?? Exception(message),
+      stackTrace: stackTrace,
+      hint: Hint.withMap({
+        'error_type': 'network',
+        'error_message': message,
+        'context': 'network_service',
+      }),
+    );
+  }
+
+  /// Agregar breadcrumb para tracking de usuario
+  static void addUserBreadcrumb(String message, {Map<String, dynamic>? data}) {
+    Sentry.addBreadcrumb(
+      Breadcrumb(
+        message: message,
+        data: data,
+        level: SentryLevel.info,
+      ),
+    );
+  }
+
+  /// Agregar breadcrumb para tracking de navegación
+  static void addNavigationBreadcrumb(String route) {
+    Sentry.addBreadcrumb(
+      Breadcrumb(
+        message: 'Navigation to $route',
+        data: {'route': route},
+        level: SentryLevel.info,
+        category: 'navigation',
+      ),
+    );
   }
 } 

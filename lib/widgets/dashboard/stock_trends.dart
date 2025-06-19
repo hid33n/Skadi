@@ -29,7 +29,7 @@ class StockTrends extends StatelessWidget {
             ),
             barTouchData: BarTouchData(
               touchTooltipData: BarTouchTooltipData(
-                tooltipBgColor: Theme.of(context).colorScheme.surface,
+                getTooltipColor: (touchedSpot) => Theme.of(context).colorScheme.surface,
                 getTooltipItem: (group, groupIndex, rod, rodIndex) {
                   final product = stockData[groupIndex];
                   return BarTooltipItem(
