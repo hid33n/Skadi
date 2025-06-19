@@ -27,6 +27,33 @@ class Organization {
   });
 
   Map<String, dynamic> toMap() {
+    // Crear una copia segura del settings para evitar referencias circulares
+    final safeSettings = <String, dynamic>{};
+    for (final entry in settings.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      
+      // Solo incluir valores que se pueden serializar a JSON
+      if (value is String || value is int || value is double || value is bool || value == null) {
+        safeSettings[key] = value;
+      } else if (value is List) {
+        // Filtrar listas para solo incluir valores serializables
+        safeSettings[key] = value.where((item) => 
+          item is String || item is int || item is double || item is bool || item == null
+        ).toList();
+      } else if (value is Map) {
+        // Filtrar maps para solo incluir valores serializables
+        final safeMap = <String, dynamic>{};
+        for (final mapEntry in value.entries) {
+          final mapValue = mapEntry.value;
+          if (mapValue is String || mapValue is int || mapValue is double || mapValue is bool || mapValue == null) {
+            safeMap[mapEntry.key.toString()] = mapValue;
+          }
+        }
+        safeSettings[key] = safeMap;
+      }
+    }
+    
     return {
       'id': id,
       'name': name,
@@ -34,7 +61,7 @@ class Organization {
       'ownerId': ownerId,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
-      'settings': settings,
+      'settings': safeSettings,
       'members': members,
       'plan': plan,
       'isActive': isActive,

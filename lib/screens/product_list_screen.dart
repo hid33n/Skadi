@@ -37,6 +37,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Recargar datos cuando las dependencias cambien (por ejemplo, cuando se vuelve a mostrar la pantalla)
+    final productViewModel = context.read<ProductViewModel>();
+    if (productViewModel.products.isEmpty && !_isLoading) {
+      _loadData();
+    }
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -49,19 +59,28 @@ class _ProductListScreenState extends State<ProductListScreen> {
     });
 
     try {
+      print('🔄 ProductListScreen: Iniciando carga de datos');
+      
       final organizationViewModel = context.read<OrganizationViewModel>();
       final organizationId = organizationViewModel.currentOrganization?.id;
+      
+      print('🔄 ProductListScreen: Organization ID: $organizationId');
       
       if (organizationId != null) {
         await context.read<ProductViewModel>().loadProducts(organizationId);
         await context.read<CategoryViewModel>().loadCategories(organizationId);
+        
+        print('🔄 ProductListScreen: Datos cargados, aplicando filtro');
         _filterProducts(_searchController.text);
+        print('✅ ProductListScreen: Carga completada');
       } else {
+        print('❌ ProductListScreen: No se pudo obtener la información de la organización');
         setState(() {
           _error = AppError.validation('No se pudo obtener la información de la organización');
         });
       }
     } catch (e) {
+      print('❌ ProductListScreen: Error cargando datos: $e');
       setState(() {
         _error = AppError.fromException(e);
       });
@@ -74,6 +93,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
   void _filterProducts(String query) {
     final products = context.read<ProductViewModel>().products;
+    print('🔄 ProductListScreen: Filtrando productos');
+    print('📊 ProductListScreen: Total de productos en ViewModel: ${products.length}');
+    for (var product in products) {
+      print('  - ${product.name} (ID: ${product.id})');
+    }
+    
     setState(() {
       _filteredProducts = products.where((product) {
         final nameMatch = product.name.toLowerCase().contains(query.toLowerCase());
@@ -81,6 +106,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
         return nameMatch || descriptionMatch;
       }).toList();
     });
+    
+    print('📊 ProductListScreen: Productos filtrados: ${_filteredProducts.length}');
+    for (var product in _filteredProducts) {
+      print('  ✅ ${product.name} (ID: ${product.id})');
+    }
   }
 
   Future<void> _handleMenuAction(String action, Product product) async {
@@ -176,8 +206,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.add),
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/add-product');
+                      onPressed: () async {
+                        final result = await Navigator.pushNamed(context, '/add-product');
+                        // Si se creó un producto exitosamente, recargar los datos
+                        if (result == true) {
+                          _loadData();
+                        }
                       },
                     ),
                   ],
@@ -254,8 +288,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             if (_searchController.text.isEmpty) ...[
                               const SizedBox(height: 16),
                               ElevatedButton.icon(
-                                onPressed: () {
-                                  Navigator.pushNamed(context, '/add-product');
+                                onPressed: () async {
+                                  final result = await Navigator.pushNamed(context, '/add-product');
+                                  // Si se creó un producto exitosamente, recargar los datos
+                                  if (result == true) {
+                                    _loadData();
+                                  }
                                 },
                                 icon: const Icon(Icons.add),
                                 label: const Text('Agregar Producto'),
@@ -398,8 +436,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.add),
-              onPressed: () {
-                Navigator.pushNamed(context, '/add-product');
+              onPressed: () async {
+                final result = await Navigator.pushNamed(context, '/add-product');
+                // Si se creó un producto exitosamente, recargar los datos
+                if (result == true) {
+                  _loadData();
+                }
               },
             ),
           ],
@@ -413,8 +455,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.add),
-              onPressed: () {
-                Navigator.pushNamed(context, '/add-product');
+              onPressed: () async {
+                final result = await Navigator.pushNamed(context, '/add-product');
+                // Si se creó un producto exitosamente, recargar los datos
+                if (result == true) {
+                  _loadData();
+                }
               },
             ),
           ],
@@ -446,8 +492,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
               ),
               const SizedBox(width: 16),
               ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/add-product');
+                onPressed: () async {
+                  final result = await Navigator.pushNamed(context, '/add-product');
+                  // Si se creó un producto exitosamente, recargar los datos
+                  if (result == true) {
+                    _loadData();
+                  }
                 },
                 icon: const Icon(Icons.add),
                 label: const Text('Nuevo Producto'),
@@ -490,8 +540,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
               ),
               const SizedBox(width: 24),
               ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/add-product');
+                onPressed: () async {
+                  final result = await Navigator.pushNamed(context, '/add-product');
+                  // Si se creó un producto exitosamente, recargar los datos
+                  if (result == true) {
+                    _loadData();
+                  }
                 },
                 icon: const Icon(Icons.add),
                 label: const Text('Nuevo Producto'),
@@ -562,8 +616,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
             if (_searchController.text.isEmpty) ...[
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/add-product');
+                onPressed: () async {
+                  final result = await Navigator.pushNamed(context, '/add-product');
+                  // Si se creó un producto exitosamente, recargar los datos
+                  if (result == true) {
+                    _loadData();
+                  }
                 },
                 icon: const Icon(Icons.add),
                 label: const Text('Agregar Producto'),

@@ -52,8 +52,61 @@ class LocalStorageService {
 
   /// Guardar datos en localStorage
   void _saveData(String table, List<Map<String, dynamic>> data) {
-    final key = '$_prefix$table';
-    html.window.localStorage[key] = jsonEncode(data);
+    try {
+      final key = '$_prefix$table';
+      
+      // Limpiar datos antes de serializar para evitar referencias circulares
+      final cleanData = data.map((item) {
+        final cleanItem = <String, dynamic>{};
+        for (final entry in item.entries) {
+          final key = entry.key;
+          final value = entry.value;
+          
+          // Solo incluir valores que se pueden serializar a JSON
+          if (value is String || value is int || value is double || value is bool || value == null) {
+            cleanItem[key] = value;
+          } else if (value is List) {
+            // Filtrar listas para solo incluir valores serializables
+            cleanItem[key] = value.where((item) => 
+              item is String || item is int || item is double || item is bool || item == null
+            ).toList();
+          } else if (value is Map) {
+            // Filtrar maps para solo incluir valores serializables
+            final cleanMap = <String, dynamic>{};
+            for (final mapEntry in value.entries) {
+              final mapValue = mapEntry.value;
+              if (mapValue is String || mapValue is int || mapValue is double || mapValue is bool || mapValue == null) {
+                cleanMap[mapEntry.key.toString()] = mapValue;
+              }
+            }
+            cleanItem[key] = cleanMap;
+          }
+        }
+        return cleanItem;
+      }).toList();
+      
+      html.window.localStorage[key] = jsonEncode(cleanData);
+    } catch (e) {
+      print('❌ LocalStorageService: Error guardando datos en tabla $table: $e');
+      // En caso de error, intentar guardar solo los campos básicos
+      try {
+        final key = '$_prefix$table';
+        final fallbackData = data.map((item) {
+          return {
+            'id': item['id']?.toString() ?? '',
+            'name': item['name']?.toString() ?? '',
+            'organizationId': item['organizationId']?.toString() ?? '',
+            'createdAt': item['createdAt']?.toString() ?? '',
+            'updatedAt': item['updatedAt']?.toString() ?? '',
+          };
+        }).toList();
+        
+        html.window.localStorage[key] = jsonEncode(fallbackData);
+        print('✅ LocalStorageService: Datos guardados con fallback para tabla $table');
+      } catch (fallbackError) {
+        print('❌ LocalStorageService: Error crítico guardando datos: $fallbackError');
+      }
+    }
   }
 
   /// Filtrar datos por organización
@@ -89,9 +142,20 @@ class LocalStorageService {
   Future<List<Product>> getProducts(String organizationId) async {
     await _ready.future;
     final data = _getData(_productsTable);
-    final filteredData = _filterByOrganization(data, organizationId);
+    print('📊 LocalStorage: Datos brutos de productos: ${data.length}');
+    for (var item in data) {
+      print('  - ${item['name']} (ID: ${item['id']}, Org: ${item['organizationId']})');
+    }
     
-    return filteredData.map((item) => Product.fromMap(item, item['id'])).toList();
+    final filteredData = _filterByOrganization(data, organizationId);
+    print('📊 LocalStorage: Productos filtrados para org $organizationId: ${filteredData.length}');
+    for (var item in filteredData) {
+      print('  ✅ ${item['name']} (ID: ${item['id']})');
+    }
+    
+    final products = filteredData.map((item) => Product.fromMap(item, item['id'])).toList();
+    print('📊 LocalStorage: Productos convertidos: ${products.length}');
+    return products;
   }
 
   /// Eliminar producto localmente
@@ -100,6 +164,17 @@ class LocalStorageService {
     final data = _getData(_productsTable);
     data.removeWhere((item) => item['id'] == productId);
     _saveData(_productsTable, data);
+  }
+
+  /// Actualizar ID de producto localmente
+  Future<void> updateProductId(String oldId, String newId) async {
+    await _ready.future;
+    final data = _getData(_productsTable);
+    final index = data.indexWhere((item) => item['id'] == oldId);
+    if (index >= 0) {
+      data[index]['id'] = newId;
+      _saveData(_productsTable, data);
+    }
   }
 
   // ===== MÉTODOS PARA CATEGORÍAS =====
@@ -140,6 +215,17 @@ class LocalStorageService {
     final data = _getData(_categoriesTable);
     data.removeWhere((item) => item['id'] == categoryId);
     _saveData(_categoriesTable, data);
+  }
+
+  /// Actualizar ID de categoría localmente
+  Future<void> updateCategoryId(String oldId, String newId) async {
+    await _ready.future;
+    final data = _getData(_categoriesTable);
+    final index = data.indexWhere((item) => item['id'] == oldId);
+    if (index >= 0) {
+      data[index]['id'] = newId;
+      _saveData(_categoriesTable, data);
+    }
   }
 
   // ===== MÉTODOS PARA VENTAS =====
@@ -287,22 +373,22 @@ class LocalStorageService {
   // ===== MÉTODOS PARA COLA DE SINCRONIZACIÓN =====
 
   /// Agregar operación a la cola de sincronización
-  Future<void> addToSyncQueue(String type, String action, Map<String, dynamic> data) async {
+  Future<void> addToSyncQueue(String type, String action, Map<String, dynamic> itemData) async {
     await _ready.future;
-    final data = _getData(_syncQueueTable);
+    final queueData = _getData(_syncQueueTable);
     
     final syncItem = {
       'id': DateTime.now().millisecondsSinceEpoch, // ID único
       'type': type,
       'action': action,
-      'data': data,
+      'data': itemData,
       'status': 'pending',
       'createdAt': DateTime.now().toIso8601String(),
       'retryCount': 0,
     };
     
-    data.add(syncItem);
-    _saveData(_syncQueueTable, data);
+    queueData.add(syncItem);
+    _saveData(_syncQueueTable, queueData);
   }
 
   /// Obtener elementos pendientes de sincronización

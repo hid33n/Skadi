@@ -38,8 +38,19 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
     final organizationViewModel = context.read<OrganizationViewModel>();
     final organizationId = organizationViewModel.currentOrganization?.id;
     
+    print('🏢 CategoryManagementScreen: Cargando categorías');
+    print('  - Organization ID: $organizationId');
+    print('  - Organization Name: ${organizationViewModel.currentOrganization?.name}');
+    
+    if (organizationId == 'organization') {
+      print('❌ CategoryManagementScreen: organizationId es "organization". No se puede cargar correctamente.');
+      return;
+    }
+    
     if (organizationId != null) {
       await context.read<CategoryViewModel>().loadCategories(organizationId);
+    } else {
+      print('❌ CategoryManagementScreen: No se pudo obtener organizationId');
     }
   }
 
@@ -48,8 +59,12 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
       final organizationViewModel = context.read<OrganizationViewModel>();
       final organizationId = organizationViewModel.currentOrganization?.id;
       
-      if (organizationId == null) {
-        context.showError('No se pudo obtener la información de la organización');
+      print('🔄 CategoryManagementScreen: Intentando crear categoría');
+      print('🔄 CategoryManagementScreen: Organization ID: $organizationId');
+      
+      if (organizationId == null || organizationId == 'organization') {
+        print('❌ CategoryManagementScreen: ID de organización inválido: $organizationId');
+        context.showError('No se pudo obtener el ID real de la organización');
         return;
       }
 
@@ -63,8 +78,13 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
           updatedAt: DateTime.now(),
         );
 
+        print('🔄 CategoryManagementScreen: Categoría creada localmente: ${category.name}');
+        print('🔄 CategoryManagementScreen: Organization ID asignado: ${category.organizationId}');
+
         final success = await context.read<CategoryViewModel>().addCategory(category);
+        
         if (success) {
+          print('✅ CategoryManagementScreen: Categoría creada exitosamente');
           _nameController.clear();
           _descriptionController.clear();
           setState(() {
@@ -78,10 +98,16 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
               ),
             );
           }
+        } else {
+          print('❌ CategoryManagementScreen: Error al crear categoría - success = false');
+          if (mounted) {
+            context.showError('No se pudo crear la categoría. Intenta nuevamente.');
+          }
         }
       } catch (e) {
+        print('❌ CategoryManagementScreen: Excepción al crear categoría: $e');
         if (mounted) {
-          context.showError(e);
+          context.showError('Error inesperado: $e');
         }
       }
     }

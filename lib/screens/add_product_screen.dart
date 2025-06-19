@@ -85,7 +85,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
           );
 
       final product = Product(
-        id: '',
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
         price: double.parse(_priceController.text),
@@ -106,7 +106,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context);
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {

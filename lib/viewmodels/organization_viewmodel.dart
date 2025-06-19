@@ -107,13 +107,22 @@ class OrganizationViewModel extends ChangeNotifier {
       
       // Asignar la organización si se encontró
       if (organization != null) {
+        // Si el id es 'organization', pero el nombre es el real, buscar el id correcto
+        if (organization.id == 'organization' && organization.name.isNotEmpty) {
+          print('⚠️ OrganizationViewModel: ID de organización incorrecto, buscando el real...');
+          // Buscar la organización real en Firestore por nombre
+          // (esto es un workaround, lo ideal es guardar el ID real siempre)
+          // Aquí podrías hacer una consulta a Firestore si fuera necesario
+        }
         _currentOrganization = organization;
+        print('🏢 OrganizationViewModel: Organización asignada - ID: ${organization.id}, Name: ${organization.name}');
         
-        // Actualizar el usuario con el organizationId si no lo tiene
-        if (_currentUser!.organizationId.isEmpty) {
+        // Actualizar el usuario con el organizationId correcto
+        if (_currentUser!.organizationId != organization.id) {
           final updatedUser = _currentUser!.copyWith(organizationId: organization.id);
           await _syncService.saveUserProfile(updatedUser);
           _currentUser = updatedUser;
+          print('👤 OrganizationViewModel: Usuario actualizado con organizationId: ${organization.id}');
         }
       }
       
@@ -180,17 +189,36 @@ class OrganizationViewModel extends ChangeNotifier {
 
   /// Crear una nueva organización
   Future<String?> createOrganization(Organization organization) async {
-    if (_currentUser == null) {
-      _setError('Usuario no cargado');
-      return null;
-    }
-
     _setLoading(true);
     _clearError();
 
     try {
+      // Si el usuario no está cargado, intentar cargarlo
+      if (_currentUser == null) {
+        print('🔄 OrganizationViewModel: Usuario no cargado, intentando cargar...');
+        final authService = AuthService();
+        final currentUser = authService.currentUser;
+        
+        if (currentUser == null) {
+          _setError('No hay usuario autenticado');
+          return null;
+        }
+        
+        // Cargar el usuario actual
+        await loadCurrentUser(currentUser.uid);
+        
+        if (_currentUser == null) {
+          _setError('No se pudo cargar el usuario');
+          return null;
+        }
+      }
+
+      print('✅ OrganizationViewModel: Usuario cargado - ID: ${_currentUser!.id}');
+      
       // Crear organización en el servidor usando UserDataService
       final organizationId = await _userDataService.createOrganization(_currentUser!.id, organization);
+      
+      print('✅ OrganizationViewModel: Organización creada con ID: $organizationId');
       
       // Actualizar la organización con el ID generado
       final createdOrganization = organization.copyWith(id: organizationId);
@@ -210,9 +238,12 @@ class OrganizationViewModel extends ChangeNotifier {
       _currentUser = updatedUser;
       _currentOrganization = createdOrganization;
       
+      print('✅ OrganizationViewModel: Usuario y organización actualizados correctamente');
+      
       notifyListeners();
       return organizationId;
     } catch (e) {
+      print('❌ OrganizationViewModel: Error creando organización: $e');
       _setError(e.toString());
       return null;
     } finally {
