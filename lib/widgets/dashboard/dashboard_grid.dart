@@ -13,6 +13,7 @@ import '../../models/sale.dart';
 import '../../models/category.dart';
 import '../../widgets/custom_snackbar.dart';
 import '../../widgets/error_widgets.dart';
+import '../../widgets/skeleton_loading.dart';
 import '../../utils/error_handler.dart';
 import 'dashboard_card.dart';
 import 'sales_chart.dart';
@@ -57,8 +58,69 @@ class DashboardGrid extends StatelessWidget {
   Widget _buildSalesSummary(BuildContext context) {
     return Consumer<DashboardViewModel>(
       builder: (context, dashboardVM, _) {
+        if (dashboardVM.isLoading) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SkeletonWidget(height: 24, width: 150),
+                  const SizedBox(height: 16),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth < 600) {
+                        // Layout mobile - columnas
+                        return Column(
+                          children: List.generate(3, (index) => 
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: Row(
+                                children: [
+                                  const SkeletonWidget(height: 40, width: 40, borderRadius: 20),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const SkeletonWidget(height: 16, width: 80),
+                                        const SizedBox(height: 4),
+                                        const SkeletonWidget(height: 12, width: 60),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      } else {
+                        // Layout desktop/tablet - filas
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: List.generate(3, (index) => 
+                            Column(
+                              children: [
+                                const SkeletonWidget(height: 40, width: 40, borderRadius: 20),
+                                const SizedBox(height: 8),
+                                const SkeletonWidget(height: 16, width: 80),
+                                const SizedBox(height: 4),
+                                const SkeletonWidget(height: 12, width: 60),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
         return StateHandlerWidget(
-          isLoading: dashboardVM.isLoading,
+          isLoading: false, // Ya manejamos el loading arriba
           error: dashboardVM.error,
           onRetry: () => dashboardVM.loadDashboardData(),
           child: _buildSalesSummaryContent(context, dashboardVM),
@@ -313,147 +375,143 @@ class DashboardGrid extends StatelessWidget {
   }
 
   Widget _buildSalesChart(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Consumer<DashboardViewModel>(
+      builder: (context, dashboardVM, _) {
+        if (dashboardVM.isLoading) {
+          return const ChartSkeleton(height: 300);
+        }
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Ventas Recientes',
-                  style: Theme.of(context).textTheme.titleLarge,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Tendencia de Ventas',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    Icon(Icons.trending_up, color: Theme.of(context).primaryColor),
+                  ],
                 ),
-                Icon(Icons.show_chart, color: Theme.of(context).primaryColor),
+                const SizedBox(height: 16),
+                const SizedBox(
+                  height: 300,
+                  child: SalesChart(),
+                ),
               ],
             ),
-            const SizedBox(height: 16),
-            const SizedBox(
-              height: 200,
-              child: SalesChart(),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildLowStockProducts(BuildContext context) {
     return Consumer<DashboardViewModel>(
       builder: (context, dashboardVM, _) {
-        return StateHandlerWidget(
-          isLoading: dashboardVM.isLoading,
-          error: dashboardVM.error,
-          isEmpty: dashboardVM.products.isEmpty,
-          onRetry: () => dashboardVM.loadProducts(),
-          emptyMessage: 'No hay productos registrados',
-          emptyTitle: 'Sin Productos',
-          emptyIcon: Icons.inventory_2_outlined,
-          emptyActionText: 'Agregar Producto',
-          onEmptyAction: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AddProductScreen(),
+        if (dashboardVM.isLoading) {
+          return const ProductListSkeleton(itemCount: 3);
+        }
+
+        final lowStockProducts = _getLowStockProducts(dashboardVM.dashboardData?.products ?? []);
+
+        if (lowStockProducts.isEmpty) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Productos con Stock Bajo',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      Icon(Icons.warning, color: Theme.of(context).primaryColor),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Center(
+                    child: Text(
+                      'No hay productos con stock bajo',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                ],
               ),
-            );
-          },
-          child: _buildLowStockProductsContent(context, dashboardVM),
+            ),
+          );
+        }
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Productos con Stock Bajo',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    Icon(Icons.warning, color: Theme.of(context).primaryColor),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ...lowStockProducts.take(3).map((product) => 
+                  ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                      child: Text(
+                        product.name[0].toUpperCase(),
+                        style: TextStyle(
+                          color: Theme.of(context).primaryColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    title: Text(product.name),
+                    subtitle: Text('Stock: ${product.stock}'),
+                    trailing: Text(
+                      '\$${product.price.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(context).pushNamed(
+                        '/product-detail',
+                        arguments: product,
+                      );
+                    },
+                  ),
+                ),
+                if (lowStockProducts.length > 3)
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pushNamed('/products');
+                    },
+                    child: const Text('Ver todos'),
+                  ),
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
-  Widget _buildLowStockProductsContent(BuildContext context, DashboardViewModel dashboardVM) {
-    final lowStockProducts = dashboardVM.getLowStockProductsLocal();
-
-    if (lowStockProducts.isEmpty) {
-      return const Card(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Center(
-            child: Text(
-              'No hay productos con stock bajo',
-              style: TextStyle(fontSize: 16),
-            ),
-          ),
-        ),
-      );
-    }
-
-    final currencyFormat = NumberFormat.currency(
-      locale: 'es_MX',
-      symbol: '\$',
-      decimalDigits: 2,
-    );
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Productos con Stock Bajo',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                Icon(Icons.warning, color: Colors.red),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 200,
-              child: ListView.builder(
-                itemCount: lowStockProducts.length,
-                itemBuilder: (context, index) {
-                  final product = lowStockProducts[index];
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    leading: CircleAvatar(
-                      backgroundColor: Colors.red.shade100,
-                      child: Text(
-                        product.name[0].toUpperCase(),
-                        style: TextStyle(
-                          color: Colors.red.shade900,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    title: Text(
-                      product.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    subtitle: Text(
-                      'Stock: ${product.stock}',
-                      style: TextStyle(
-                        color: product.stock <= 5 ? Colors.red : Colors.orange,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 12,
-                      ),
-                    ),
-                    trailing: Text(
-                      currencyFormat.format(product.price),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  List<Product> _getLowStockProducts(List<Product> products) {
+    return products.where((product) => product.stock <= 5).toList();
   }
 
   Widget _buildTopSellingProducts(BuildContext context) {
