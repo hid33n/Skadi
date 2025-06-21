@@ -6,7 +6,6 @@ import '../models/category.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/movement_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
-import '../viewmodels/organization_viewmodel.dart';
 import '../services/firestore_service.dart';
 import '../utils/error_handler.dart';
 import 'edit_product_screen.dart';
@@ -44,37 +43,31 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Future<void> _loadCategory() async {
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId != null) {
-      try {
-        final categoryViewModel = context.read<CategoryViewModel>();
-        await categoryViewModel.loadCategories(organizationId);
-        
-        final category = categoryViewModel.categories.firstWhere(
-          (c) => c.id == widget.product.categoryId,
-          orElse: () => Category(
-            id: '',
-            name: 'Sin categoría',
-            description: 'Categoría no encontrada',
-            organizationId: organizationId,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          ),
-        );
-        
-        if (mounted) {
-          setState(() {
-            _categoryName = category.name;
-          });
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() {
-            _categoryName = 'Error al cargar categoría';
-          });
-        }
+    try {
+      final categoryViewModel = context.read<CategoryViewModel>();
+      await categoryViewModel.loadCategories();
+      
+      final category = categoryViewModel.categories.firstWhere(
+        (c) => c.id == widget.product.categoryId,
+        orElse: () => Category(
+          id: '',
+          name: 'Sin categoría',
+          description: 'Categoría no encontrada',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+      
+      if (mounted) {
+        setState(() {
+          _categoryName = category.name;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _categoryName = 'Error al cargar categoría';
+        });
       }
     }
   }
@@ -96,14 +89,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       return;
     }
 
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId == null) {
-      context.showError('No se pudo obtener la información de la organización');
-      return;
-    }
-
     setState(() => _isLoading = true);
 
     try {
@@ -115,11 +100,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         type: _selectedType,
         date: DateTime.now(),
         note: _noteController.text.isEmpty ? null : _noteController.text,
-        organizationId: organizationId,
       );
 
       await context.read<MovementViewModel>().addMovement(movement);
-      await context.read<ProductViewModel>().loadProducts(organizationId);
+      await context.read<ProductViewModel>().loadProducts();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

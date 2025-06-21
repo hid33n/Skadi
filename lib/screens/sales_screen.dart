@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/sale_viewmodel.dart';
-import '../viewmodels/organization_viewmodel.dart';
 import '../models/sale.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
@@ -30,12 +29,7 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
   Future<void> _loadSales() async {
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId != null) {
-      await context.read<SaleViewModel>().loadSales(organizationId);
-    }
+    await context.read<SaleViewModel>().loadSales();
   }
 
   Future<void> _deleteSale(Sale sale) async {
@@ -60,20 +54,15 @@ class _SalesScreenState extends State<SalesScreen> {
 
     if (confirmed == true) {
       try {
-        final organizationViewModel = context.read<OrganizationViewModel>();
-        final organizationId = organizationViewModel.currentOrganization?.id;
-        
-        if (organizationId != null) {
-          final success = await context.read<SaleViewModel>().deleteSale(sale.id, organizationId);
-          if (success) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Venta eliminada correctamente'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
+        final success = await context.read<SaleViewModel>().deleteSale(sale.id);
+        if (success) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Venta eliminada correctamente'),
+                backgroundColor: Colors.green,
+              ),
+            );
           }
         }
       } catch (e) {
@@ -82,6 +71,76 @@ class _SalesScreenState extends State<SalesScreen> {
         }
       }
     }
+  }
+
+  void _showSaleDetails(Sale sale) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Detalles de Venta'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildDetailRow('Producto', sale.productName),
+            _buildDetailRow('Cantidad', '${sale.quantity} unidades'),
+            _buildDetailRow('Precio Unitario', '\$${(sale.amount / sale.quantity).toStringAsFixed(2)}'),
+            _buildDetailRow('Total', '\$${sale.amount.toStringAsFixed(2)}'),
+            _buildDetailRow('Fecha', sale.formattedDate),
+            if (sale.notes != null && sale.notes!.isNotEmpty)
+              _buildDetailRow('Notas', sale.notes!),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editSale(Sale sale) {
+    // Por ahora, mostrar un mensaje informativo
+    // En el futuro se puede implementar una pantalla de edición completa
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar Venta'),
+        content: const Text(
+          'La funcionalidad de edición de ventas está en desarrollo. '
+          'Por ahora, puedes eliminar la venta y crear una nueva.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Expanded(
+            child: Text(value),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -142,7 +201,7 @@ class _SalesScreenState extends State<SalesScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        saleVM.error!.message,
+                        saleVM.error!,
                         style: const TextStyle(fontSize: 16),
                         textAlign: TextAlign.center,
                       ),
@@ -220,10 +279,10 @@ class _SalesScreenState extends State<SalesScreen> {
                                 onSelected: (value) {
                                   switch (value) {
                                     case 'view':
-                                      // TODO: Implementar vista detallada
+                                      _showSaleDetails(sale);
                                       break;
                                     case 'edit':
-                                      // TODO: Implementar edición
+                                      _editSale(sale);
                                       break;
                                     case 'delete':
                                       _deleteSale(sale);

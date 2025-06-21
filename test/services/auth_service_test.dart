@@ -72,7 +72,7 @@ void main() {
       final mockCollectionReference = MockCollectionReference();
       final mockDocSnapshot = MockQueryDocumentSnapshot();
       
-      when(mockFirestore.collection('users')).thenReturn(mockCollectionReference);
+      when(mockFirestore.collection('pm')).thenReturn(mockCollectionReference);
       when(mockCollectionReference.where('username', isEqualTo: 'testuser')).thenReturn(mockCollectionReference);
       when(mockCollectionReference.get()).thenAnswer((_) async => mockQuerySnapshot);
       when(mockQuerySnapshot.docs).thenReturn([mockDocSnapshot]);
@@ -95,7 +95,7 @@ void main() {
       final mockQuerySnapshot = MockQuerySnapshot();
       final mockCollectionReference = MockCollectionReference();
       
-      when(mockFirestore.collection('users')).thenReturn(mockCollectionReference);
+      when(mockFirestore.collection('pm')).thenReturn(mockCollectionReference);
       when(mockCollectionReference.where('username', isEqualTo: 'nonexistentuser')).thenReturn(mockCollectionReference);
       when(mockCollectionReference.get()).thenAnswer((_) async => mockQuerySnapshot);
       when(mockQuerySnapshot.docs).thenReturn([]);
@@ -122,7 +122,7 @@ void main() {
       when(mockUserCredential.user).thenReturn(mockUser);
       when(mockUser.uid).thenReturn('test-uid');
       
-      when(mockFirestore.collection('users')).thenReturn(mockCollectionReference);
+      when(mockFirestore.collection('pm')).thenReturn(mockCollectionReference);
       when(mockCollectionReference.where('username', isEqualTo: 'testuser')).thenReturn(mockCollectionReference);
       when(mockCollectionReference.get()).thenAnswer((_) async => mockQuerySnapshot);
       when(mockQuerySnapshot.docs).thenReturn([]);
@@ -165,7 +165,7 @@ void main() {
       final mockCollectionReference = MockCollectionReference();
       final mockDocSnapshot = MockQueryDocumentSnapshot();
       
-      when(mockFirestore.collection('users')).thenReturn(mockCollectionReference);
+      when(mockFirestore.collection('pm')).thenReturn(mockCollectionReference);
       when(mockCollectionReference.where('username', isEqualTo: 'existinguser')).thenReturn(mockCollectionReference);
       when(mockCollectionReference.get()).thenAnswer((_) async => mockQuerySnapshot);
       when(mockQuerySnapshot.docs).thenReturn([mockDocSnapshot]);

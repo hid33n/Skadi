@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../models/sale.dart';
 import '../viewmodels/sale_viewmodel.dart';
 import '../viewmodels/product_viewmodel.dart';
-import '../viewmodels/organization_viewmodel.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
@@ -49,12 +48,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
   }
 
   Future<void> _loadData() async {
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId != null) {
-      await context.read<ProductViewModel>().loadProducts(organizationId);
-    }
+    await context.read<ProductViewModel>().loadProducts();
   }
 
   void _selectProduct(String productId, String productName, double price) {
@@ -81,14 +75,6 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       return;
     }
 
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId == null) {
-      context.showError('No se pudo obtener la información de la organización');
-      return;
-    }
-
     setState(() {
       _isSaving = true;
     });
@@ -110,7 +96,6 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
         quantity: _quantity,
         date: DateTime.now(),
         notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-        organizationId: organizationId,
       );
 
       final success = await saleViewModel.addSale(sale);

@@ -1,300 +1,147 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../models/product.dart';
-import '../services/sync_service.dart';
+import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
 class ProductViewModel extends ChangeNotifier {
-  final SyncService _syncService = SyncService();
-  final AuthService _authService = AuthService();
+  final FirestoreService _firestoreService;
+  final AuthService _authService;
   
   List<Product> _products = [];
-  Product? _selectedProduct;
-  Map<String, dynamic> _productStats = {};
   bool _isLoading = false;
   String? _error;
+
+  ProductViewModel(this._firestoreService, this._authService);
 
   List<Product> get products => _products;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  /// Cargar productos del usuario actual para una organización específica
-  Future<void> loadProducts(String organizationId) async {
-    _setLoading(true);
-    _clearError();
-
+  Future<void> loadProducts() async {
     try {
-      print('🔄 ProductViewModel: Cargando productos para organización: $organizationId');
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+
+      print('🔄 ProductViewModel: Cargando productos');
       
-      final currentUser = _authService.currentUser;
-      if (currentUser == null) {
-        print('❌ ProductViewModel: Usuario no autenticado');
-        _setError('Usuario no autenticado');
-        return;
-      }
-
-      print('✅ ProductViewModel: Usuario autenticado - ID: ${currentUser.uid}');
-
-      // Usar SyncService que maneja cache local y sincronización
-      _products = await _syncService.getProducts(organizationId);
+      _products = await _firestoreService.getProducts();
       
       print('📊 ProductViewModel: Productos cargados: ${_products.length}');
       for (var product in _products) {
-        print('  - ${product.name} (ID: ${product.id}, Org: ${product.organizationId})');
+        print('  - ${product.name} (ID: ${product.id})');
       }
       
-      await _loadProductStats();
-      print('✅ ProductViewModel: Estadísticas cargadas');
-    } catch (e) {
-      print('❌ ProductViewModel: Error cargando productos: $e');
-      _setError(e.toString());
-    } finally {
-      _setLoading(false);
+      _isLoading = false;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
-  /// Cargar producto específico
-  Future<void> loadProduct(String productId) async {
-    _setLoading(true);
-    _clearError();
-
-    try {
-      _selectedProduct = _products.firstWhere((p) => p.id == productId);
-    } catch (e) {
-      _setError(e.toString());
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  /// Agregar producto
   Future<bool> addProduct(Product product) async {
-    _setLoading(true);
-    _clearError();
-
     try {
-      print('🔄 ProductViewModel: Iniciando creación de producto: ${product.name}');
+      print('🔄 ProductViewModel: Agregando producto: ${product.name}');
       
-      final currentUser = _authService.currentUser;
-      if (currentUser == null) {
-        print('❌ ProductViewModel: Usuario no autenticado');
-        _setError('Usuario no autenticado');
-        return false;
-      }
+      await _firestoreService.addProduct(product);
+      await loadProducts();
+      print('✅ ProductViewModel: Producto agregado exitosamente');
+      return true;
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
+      notifyListeners();
+      return false;
+    }
+  }
 
-      print('✅ ProductViewModel: Usuario autenticado - ID: ${currentUser.uid}');
-      print('🔄 ProductViewModel: Organization ID: ${product.organizationId}');
+  Future<bool> updateProduct(Product product) async {
+    try {
+      print('🔄 ProductViewModel: Actualizando producto: ${product.name}');
+      
+      await _firestoreService.updateProduct(product.id, product);
+      await loadProducts();
+      print('✅ ProductViewModel: Producto actualizado exitosamente');
+      return true;
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
+      notifyListeners();
+      return false;
+    }
+  }
 
-      // Usar SyncService que maneja cache local y sincronización
-      final productId = await _syncService.createProduct(product);
+  Future<bool> deleteProduct(String id) async {
+    try {
+      print('🔄 ProductViewModel: Eliminando producto con ID: $id');
       
-      print('✅ ProductViewModel: Producto creado con ID: $productId');
+      await _firestoreService.deleteProduct(id);
+      await loadProducts();
+      print('✅ ProductViewModel: Producto eliminado exitosamente');
+      return true;
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateStock(String id, int newStock) async {
+    try {
+      print('🔄 ProductViewModel: Actualizando stock del producto $id a $newStock');
       
-      if (productId.isNotEmpty) {
-        // Recargar productos
-        await loadProducts(product.organizationId);
-        print('✅ ProductViewModel: Productos recargados exitosamente');
+      final product = _products.firstWhere((p) => p.id == id);
+      final updatedProduct = product.copyWith(
+        stock: newStock,
+        updatedAt: DateTime.now(),
+      );
+      
+      final success = await updateProduct(updatedProduct);
+      
+      if (success) {
+        print('✅ ProductViewModel: Stock actualizado exitosamente');
         return true;
       } else {
-        print('❌ ProductViewModel: ID de producto vacío retornado');
+        print('❌ ProductViewModel: Error al actualizar stock');
         return false;
       }
-    } catch (e) {
-      print('❌ ProductViewModel: Error creando producto: $e');
-      _setError(e.toString());
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
+      notifyListeners();
       return false;
-    } finally {
-      _setLoading(false);
     }
   }
 
-  /// Actualizar producto
-  Future<bool> updateProduct(Product product) async {
-    _setLoading(true);
-    _clearError();
-
-    try {
-      final currentUser = _authService.currentUser;
-      if (currentUser == null) {
-        _setError('Usuario no autenticado');
-        return false;
-      }
-
-      // Usar SyncService que maneja cache local y sincronización
-      await _syncService.updateProduct(product);
-      // Recargar productos
-      await loadProducts(product.organizationId);
-      return true;
-    } catch (e) {
-      _setError(e.toString());
-      return false;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  /// Eliminar producto
-  Future<bool> deleteProduct(String id, String organizationId) async {
-    _setLoading(true);
-    _clearError();
-
-    try {
-      print('🔄 ProductViewModel: Iniciando eliminación de producto: $id');
-      
-      final currentUser = _authService.currentUser;
-      if (currentUser == null) {
-        print('❌ ProductViewModel: Usuario no autenticado');
-        _setError('Usuario no autenticado');
-        return false;
-      }
-
-      print('✅ ProductViewModel: Usuario autenticado - ID: ${currentUser.uid}');
-      print('🔄 ProductViewModel: Organization ID: $organizationId');
-
-      // Usar SyncService que maneja cache local y sincronización
-      await _syncService.deleteProduct(id);
-      print('✅ ProductViewModel: Producto eliminado exitosamente');
-      
-      // Recargar productos
-      await loadProducts(organizationId);
-      print('✅ ProductViewModel: Productos recargados exitosamente');
-      return true;
-    } catch (e) {
-      print('❌ ProductViewModel: Error eliminando producto: $e');
-      _setError(e.toString());
-      return false;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  /// Actualizar stock
-  Future<bool> updateStock(String id, int newStock, String organizationId) async {
-    _setLoading(true);
-    _clearError();
-
-    try {
-      final currentUser = _authService.currentUser;
-      if (currentUser == null) {
-        _setError('Usuario no autenticado');
-        return false;
-      }
-
-      final product = _products.firstWhere((p) => p.id == id);
-      final updatedProduct = product.copyWith(stock: newStock);
-      
-      // Usar SyncService que maneja cache local y sincronización
-      await _syncService.updateProduct(updatedProduct);
-      // Recargar productos
-      await loadProducts(organizationId);
-      return true;
-    } catch (e) {
-      _setError(e.toString());
-      return false;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  /// Buscar productos
-  Future<List<Product>> searchProducts(String query) async {
-    try {
-      return searchProductsLocal(query);
-    } catch (e) {
-      _setError(e.toString());
-      return [];
-    }
-  }
-
-  /// Obtener productos por categoría
-  Future<List<Product>> getProductsByCategory(String categoryId) async {
-    try {
-      return filterByCategoryLocal(categoryId);
-    } catch (e) {
-      _setError(e.toString());
-      return [];
-    }
-  }
-
-  /// Obtener productos con stock bajo
-  Future<List<Product>> getLowStockProducts() async {
-    try {
-      return getLowStockProductsLocal();
-    } catch (e) {
-      _setError(e.toString());
-      return [];
-    }
-  }
-
-  /// Cargar estadísticas de productos
-  Future<void> _loadProductStats() async {
-    try {
-      _productStats = {
-        'totalProducts': _products.length,
-        'lowStockProducts': getLowStockProductsLocal().length,
-        'totalValue': getTotalStockValue(),
-        'categories': getProductsByCategoryLocal().length,
-      };
-    } catch (e) {
-      _setError(e.toString());
-    }
-  }
-
-  /// Obtener productos con stock bajo (local)
-  List<Product> getLowStockProductsLocal() {
-    return _products.where((product) => product.stock <= product.minStock).toList();
-  }
-
-  /// Obtener distribución por categoría (local)
-  Map<String, int> getProductsByCategoryLocal() {
-    final Map<String, int> categoryCount = {};
-    for (var product in _products) {
-      categoryCount[product.categoryId] = (categoryCount[product.categoryId] ?? 0) + 1;
-    }
-    return categoryCount;
-  }
-
-  /// Obtener valor total del stock (local)
-  double getTotalStockValue() {
-    return _products.fold(0.0, (sum, product) => sum + (product.price * product.stock));
-  }
-
-  /// Buscar productos (local)
-  List<Product> searchProductsLocal(String query) {
+  List<Product> searchProducts(String query) {
     if (query.isEmpty) return _products;
+    
     return _products.where((product) {
       return product.name.toLowerCase().contains(query.toLowerCase()) ||
-          product.description.toLowerCase().contains(query.toLowerCase());
+             product.description.toLowerCase().contains(query.toLowerCase()) ||
+             (product.sku?.toLowerCase().contains(query.toLowerCase()) ?? false) ||
+             (product.barcode?.toLowerCase().contains(query.toLowerCase()) ?? false);
     }).toList();
   }
 
-  /// Filtrar por categoría (local)
-  List<Product> filterByCategoryLocal(String categoryId) {
-    if (categoryId.isEmpty) return _products;
-    return _products.where((p) => p.categoryId == categoryId).toList();
+  List<Product> getLowStockProducts() {
+    return _products.where((product) => product.stock <= product.minStock).toList();
   }
 
-  /// Limpiar datos
-  void clear() {
-    _products.clear();
-    _selectedProduct = null;
-    _productStats.clear();
-    _clearError();
-    notifyListeners();
+  List<Product> getProductsByCategory(String categoryId) {
+    return _products.where((product) => product.categoryId == categoryId).toList();
   }
 
-  // Métodos privados
-  void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
+  Product? getProductById(String id) {
+    try {
+      return _products.firstWhere((product) => product.id == id);
+    } catch (e) {
+      return null;
+    }
   }
 
-  void _setError(String error) {
-    _error = error;
-    notifyListeners();
-  }
-
-  void _clearError() {
+  void clearError() {
     _error = null;
+    notifyListeners();
   }
 } 

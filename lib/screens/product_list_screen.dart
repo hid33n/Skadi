@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/product.dart';
+import '../models/category.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
-import '../viewmodels/organization_viewmodel.dart';
-import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';
@@ -15,6 +14,10 @@ import '../widgets/advanced_search.dart';
 import '../widgets/responsive_grid.dart';
 import '../widgets/error_widgets.dart';
 import '../widgets/skeleton_loading.dart';
+import 'home_screen.dart';
+import 'add_product_screen.dart';
+import 'product_detail_screen.dart';
+import 'edit_product_screen.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -25,7 +28,6 @@ class ProductListScreen extends StatefulWidget {
 
 class _ProductListScreenState extends State<ProductListScreen> {
   final _searchController = TextEditingController();
-  final _authService = AuthService();
   List<Product> _filteredProducts = [];
   bool _isLoading = false;
   AppError? _error;
@@ -61,24 +63,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
     try {
       print('🔄 ProductListScreen: Iniciando carga de datos');
       
-      final organizationViewModel = context.read<OrganizationViewModel>();
-      final organizationId = organizationViewModel.currentOrganization?.id;
+      await context.read<ProductViewModel>().loadProducts();
+      await context.read<CategoryViewModel>().loadCategories();
       
-      print('🔄 ProductListScreen: Organization ID: $organizationId');
-      
-      if (organizationId != null) {
-        await context.read<ProductViewModel>().loadProducts(organizationId);
-        await context.read<CategoryViewModel>().loadCategories(organizationId);
-        
-        print('🔄 ProductListScreen: Datos cargados, aplicando filtro');
-        _filterProducts(_searchController.text);
-        print('✅ ProductListScreen: Carga completada');
-      } else {
-        print('❌ ProductListScreen: No se pudo obtener la información de la organización');
-        setState(() {
-          _error = AppError.validation('No se pudo obtener la información de la organización');
-        });
-      }
+      print('🔄 ProductListScreen: Datos cargados, aplicando filtro');
+      _filterProducts(_searchController.text);
+      print('✅ ProductListScreen: Carga completada');
     } catch (e) {
       print('❌ ProductListScreen: Error cargando datos: $e');
       setState(() {
@@ -95,40 +85,25 @@ class _ProductListScreenState extends State<ProductListScreen> {
     final products = context.read<ProductViewModel>().products;
     print('🔄 ProductListScreen: Filtrando productos');
     print('📊 ProductListScreen: Total de productos en ViewModel: ${products.length}');
-    for (var product in products) {
-      print('  - ${product.name} (ID: ${product.id})');
-    }
     
     setState(() {
       _filteredProducts = products.where((product) {
         final nameMatch = product.name.toLowerCase().contains(query.toLowerCase());
-        final descriptionMatch = product.description.toLowerCase().contains(query.toLowerCase());
+        final descriptionMatch = (product.description?.toLowerCase().contains(query.toLowerCase()) ?? false);
         return nameMatch || descriptionMatch;
       }).toList();
     });
     
     print('📊 ProductListScreen: Productos filtrados: ${_filteredProducts.length}');
-    for (var product in _filteredProducts) {
-      print('  ✅ ${product.name} (ID: ${product.id})');
-    }
   }
 
   Future<void> _handleMenuAction(String action, Product product) async {
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId == null) {
-      context.showError('No se pudo obtener la información de la organización');
-      return;
-    }
-
     switch (action) {
       case 'edit':
-        // TODO: Implementar edición de producto
         Navigator.pushNamed(
           context, 
           '/edit-product',
-          arguments: {'product': product, 'organizationId': organizationId},
+          arguments: {'product': product},
         );
         break;
       case 'delete':
@@ -153,7 +128,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
         if (confirmed == true) {
           try {
-            final success = await context.read<ProductViewModel>().deleteProduct(product.id, organizationId);
+            final success = await context.read<ProductViewModel>().deleteProduct(product.id);
             if (success) {
               _loadData();
               if (mounted) {
@@ -167,7 +142,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
             }
           } catch (e) {
             if (mounted) {
-              context.showError(e);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error: $e'),
+                  backgroundColor: Colors.red,
+                ),
+              );
             }
           }
         }
@@ -176,7 +156,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
         Navigator.pushNamed(
           context, 
           '/product-detail',
-          arguments: {'product': product, 'organizationId': organizationId},
+          arguments: {'product': product},
         );
         break;
     }

@@ -1,156 +1,154 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' as foundation;
 import '../models/sale.dart';
 import '../models/sale_item.dart';
-import '../services/sync_service.dart';
+import '../services/firestore_service.dart';
+import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
-import '../utils/error_handler.dart';
-import 'package:flutter/material.dart';
 
-class SaleViewModel extends ChangeNotifier {
-  final SyncService _syncService = SyncService();
+class SaleViewModel extends foundation.ChangeNotifier {
+  final FirestoreService _firestoreService;
+  final AuthService _authService;
+  
   List<Sale> _sales = [];
+  Sale? _selectedSale;
+  Map<String, dynamic> _saleStats = {};
   bool _isLoading = false;
-  AppError? _error;
+  String? _error;
+
+  SaleViewModel(this._firestoreService, this._authService);
 
   List<Sale> get sales => _sales;
+  Sale? get selectedSale => _selectedSale;
+  Map<String, dynamic> get saleStats => _saleStats;
   bool get isLoading => _isLoading;
-  AppError? get error => _error;
-  double get totalSales => _sales.fold(0, (sum, sale) => sum + sale.amount);
-  int get salesCount => _sales.length;
+  String? get error => _error;
 
-  Future<void> loadSales(String organizationId) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
+  Future<void> loadSales() async {
     try {
-      _sales = await _syncService.getSales(organizationId);
-    } catch (e) {
-      _error = AppError.fromException(e);
-    } finally {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+
+      print('🔄 Cargando ventas');
+      
+      _sales = await _firestoreService.getSales();
+      
+      print('📊 Ventas cargadas: ${_sales.length}');
+      for (var sale in _sales) {
+        print('  - Venta ${sale.id}: \$${sale.amount} - ${sale.quantity} items');
+      }
+      
+      await _loadSaleStats();
+      _isLoading = false;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadSale(String saleId) async {
+    try {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+
+      _selectedSale = _sales.firstWhere((sale) => sale.id == saleId);
+      
+      _isLoading = false;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
       _isLoading = false;
       notifyListeners();
     }
   }
 
   Future<bool> addSale(Sale sale) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
     try {
-      await _syncService.createSale(sale);
-      await loadSales(sale.organizationId);
+      print('🔄 SaleViewModel: Agregando venta: \$${sale.amount}');
+      
+      await _firestoreService.addSale(sale);
+      await loadSales();
+      print('✅ SaleViewModel: Venta agregada exitosamente');
       return true;
-    } catch (e) {
-      _error = AppError.fromException(e);
-      return false;
-    } finally {
-      _isLoading = false;
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
       notifyListeners();
+      return false;
     }
   }
 
-  Future<bool> updateSale(Sale sale) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
+  Future<bool> deleteSale(String id) async {
     try {
-      await _syncService.updateSale(sale);
-      await loadSales(sale.organizationId);
+      print('🔄 SaleViewModel: Eliminando venta con ID: $id');
+      
+      await _firestoreService.deleteSale(id);
+      await loadSales();
+      print('✅ SaleViewModel: Venta eliminada exitosamente');
       return true;
-    } catch (e) {
-      _error = AppError.fromException(e);
-      return false;
-    } finally {
-      _isLoading = false;
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
       notifyListeners();
-    }
-  }
-
-  Future<bool> deleteSale(String id, String organizationId) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      await _syncService.deleteSale(id);
-      await loadSales(organizationId);
-      return true;
-    } catch (e) {
-      _error = AppError.fromException(e);
       return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
     }
-  }
-
-  double calculateTotalSales() {
-    return _sales.fold<double>(0, (sum, sale) => sum + sale.amount);
-  }
-
-  List<Sale> getRecentSales() {
-    return _sales.take(5).toList();
   }
 
   List<Sale> searchSales(String query) {
     if (query.isEmpty) return _sales;
     
-    final lowercaseQuery = query.toLowerCase();
     return _sales.where((sale) {
-      return sale.productName.toLowerCase().contains(lowercaseQuery) ||
-          (sale.notes?.toLowerCase().contains(lowercaseQuery) ?? false);
+      return sale.id.toLowerCase().contains(query.toLowerCase()) ||
+             sale.productName.toLowerCase().contains(query.toLowerCase()) ||
+             (sale.notes?.toLowerCase().contains(query.toLowerCase()) ?? false);
     }).toList();
   }
 
-  List<Sale> getSalesByDateRange(DateTime start, DateTime end) {
+  List<Sale> getSalesByDateRange(DateTime startDate, DateTime endDate) {
     return _sales.where((sale) {
-      return sale.date.isAfter(start) && sale.date.isBefore(end);
+      return sale.date.isAfter(startDate.subtract(const Duration(days: 1))) &&
+             sale.date.isBefore(endDate.add(const Duration(days: 1)));
     }).toList();
   }
 
-  Map<String, double> getTopSellingProducts() {
-    final productSales = <String, double>{};
-    
-    for (var sale in _sales) {
-      productSales[sale.productId] = (productSales[sale.productId] ?? 0) + sale.amount;
+  Sale? getSaleById(String id) {
+    try {
+      return _sales.firstWhere((sale) => sale.id == id);
+    } catch (e) {
+      return null;
     }
-
-    final sortedProducts = productSales.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    return Map.fromEntries(sortedProducts.take(5));
   }
 
-  List<SalesDataPoint> getSalesByPeriod() {
-    final now = DateTime.now();
-    final lastWeek = now.subtract(const Duration(days: 7));
-    
-    // Agrupar ventas por día
-    final Map<String, double> dailySales = {};
-    for (var i = 0; i < 7; i++) {
-      final date = lastWeek.add(Duration(days: i));
-      final dateStr = '${date.day}/${date.month}';
-      dailySales[dateStr] = 0;
-    }
-
-    // Sumar ventas por día
-    for (var sale in _sales) {
-      if (sale.date.isAfter(lastWeek)) {
-        final dateStr = '${sale.date.day}/${sale.date.month}';
-        dailySales[dateStr] = (dailySales[dateStr] ?? 0) + sale.amount;
+  Future<void> _loadSaleStats() async {
+    try {
+      if (_sales.isEmpty) {
+        _saleStats = {
+          'totalSales': 0,
+          'totalRevenue': 0.0,
+          'averageSaleValue': 0.0,
+          'totalItemsSold': 0,
+        };
+        return;
       }
-    }
 
-    // Convertir a lista de puntos de datos
-    return dailySales.entries.map((entry) {
-      return SalesDataPoint(
-        date: entry.key,
-        amount: entry.value,
-      );
-    }).toList();
+      double totalRevenue = 0.0;
+      int totalItemsSold = 0;
+
+      for (var sale in _sales) {
+        totalRevenue += sale.amount;
+        totalItemsSold += sale.quantity;
+      }
+
+      _saleStats = {
+        'totalSales': _sales.length,
+        'totalRevenue': totalRevenue,
+        'averageSaleValue': totalRevenue / _sales.length,
+        'totalItemsSold': totalItemsSold,
+      };
+    } catch (e, stackTrace) {
+      print('❌ Error cargando estadísticas de ventas: $e');
+    }
   }
 
   void clearError() {
@@ -158,16 +156,8 @@ class SaleViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool get hasError => _error != null;
-  bool get hasSales => _sales.isNotEmpty;
-}
-
-class SalesDataPoint {
-  final String date;
-  final double amount;
-
-  SalesDataPoint({
-    required this.date,
-    required this.amount,
-  });
+  void clearSelectedSale() {
+    _selectedSale = null;
+    notifyListeners();
+  }
 } 

@@ -10,7 +10,6 @@ class Product {
   final int minStock;
   final int maxStock;
   final String categoryId;
-  final String organizationId;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? imageUrl;
@@ -27,7 +26,6 @@ class Product {
     required this.minStock,
     required this.maxStock,
     required this.categoryId,
-    required this.organizationId,
     required this.createdAt,
     required this.updatedAt,
     this.imageUrl,
@@ -45,7 +43,6 @@ class Product {
       'minStock': minStock,
       'maxStock': maxStock,
       'categoryId': categoryId,
-      'organizationId': organizationId,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'imageUrl': imageUrl,
@@ -65,7 +62,6 @@ class Product {
       minStock: map['minStock'] as int,
       maxStock: map['maxStock'] as int,
       categoryId: map['categoryId'] as String,
-      organizationId: map['organizationId'] as String,
       createdAt: DateTime.parse(map['createdAt'] as String),
       updatedAt: DateTime.parse(map['updatedAt'] as String),
       imageUrl: map['imageUrl'] as String?,
@@ -84,7 +80,6 @@ class Product {
     int? minStock,
     int? maxStock,
     String? categoryId,
-    String? organizationId,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? imageUrl,
@@ -101,7 +96,6 @@ class Product {
       minStock: minStock ?? this.minStock,
       maxStock: maxStock ?? this.maxStock,
       categoryId: categoryId ?? this.categoryId,
-      organizationId: organizationId ?? this.organizationId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       imageUrl: imageUrl ?? this.imageUrl,
@@ -113,7 +107,7 @@ class Product {
 
   @override
   String toString() {
-    return 'Product(id: $id, name: $name, description: $description, price: $price, stock: $stock, minStock: $minStock, maxStock: $maxStock, categoryId: $categoryId, organizationId: $organizationId, createdAt: $createdAt, updatedAt: $updatedAt, imageUrl: $imageUrl, barcode: $barcode, sku: $sku, attributes: $attributes)';
+    return 'Product(id: $id, name: $name, description: $description, price: $price, stock: $stock, minStock: $minStock, maxStock: $maxStock, categoryId: $categoryId, createdAt: $createdAt, updatedAt: $updatedAt, imageUrl: $imageUrl, barcode: $barcode, sku: $sku, attributes: $attributes)';
   }
 
   @override
@@ -128,7 +122,6 @@ class Product {
         other.minStock == minStock &&
         other.maxStock == maxStock &&
         other.categoryId == categoryId &&
-        other.organizationId == organizationId &&
         other.createdAt == createdAt &&
         other.updatedAt == updatedAt &&
         other.imageUrl == imageUrl &&
@@ -147,7 +140,6 @@ class Product {
         minStock.hashCode ^
         maxStock.hashCode ^
         categoryId.hashCode ^
-        organizationId.hashCode ^
         createdAt.hashCode ^
         updatedAt.hashCode ^
         imageUrl.hashCode ^

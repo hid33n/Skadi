@@ -1,85 +1,50 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' as foundation;
 import '../models/dashboard_data.dart';
-import '../models/product.dart';
-import '../models/sale.dart';
-import '../models/category.dart' as app_category;
-import '../models/movement.dart';
-import '../models/organization.dart';
-import '../services/sync_service.dart';
+import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
-class DashboardViewModel extends ChangeNotifier {
-  final SyncService _syncService = SyncService();
-  final AuthService _authService = AuthService();
-
+class DashboardViewModel extends foundation.ChangeNotifier {
+  final FirestoreService _firestoreService;
+  final AuthService _authService;
+  
   DashboardData? _dashboardData;
-  Organization? _currentOrganization;
   bool _isLoading = false;
   String? _error;
 
+  DashboardViewModel(this._firestoreService, this._authService);
+
   DashboardData? get dashboardData => _dashboardData;
-  Organization? get currentOrganization => _currentOrganization;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  // Getters para acceso directo a los datos
-  List<Product> get products => _dashboardData?.products ?? [];
-  List<Sale> get sales => _dashboardData?.sales ?? [];
-  List<app_category.Category> get categories => _dashboardData?.categories ?? [];
-  List<Movement> get movements => _dashboardData?.recentMovements ?? [];
-
-  // Métodos para obtener productos con stock bajo
-  List<Product> getLowStockProductsLocal() {
-    return products.where((product) => 
-      product.stock <= product.minStock
-    ).toList();
-  }
-
-  // Método para cargar productos (alias para loadDashboardData)
-  Future<void> loadProducts() async {
-    await loadDashboardData();
-  }
-
   Future<void> loadDashboardData() async {
-    _setLoading(true);
-    _clearError();
-
     try {
-      final currentUser = _authService.currentUser;
-      if (currentUser == null) {
-        _setError('Usuario no autenticado');
-        return;
-      }
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
 
-      // Primero cargar la organización del usuario
-      _currentOrganization = await _syncService.getOrganization();
+      print('🔄 Cargando datos del dashboard');
       
-      if (_currentOrganization == null) {
-        _setError('No se encontró la organización del usuario');
-        return;
-      }
-
-      // Cargar datos en paralelo usando el organizationId
-      final results = await Future.wait([
-        _syncService.getProducts(_currentOrganization!.id),
-        _syncService.getSales(_currentOrganization!.id),
-        _syncService.getCategories(_currentOrganization!.id),
-        _syncService.getMovements(_currentOrganization!.id),
-      ]);
-
-      final products = results[0] as List<Product>;
-      final sales = results[1] as List<Sale>;
-      final categories = results[2] as List<app_category.Category>;
-      final movements = results[3] as List<Movement>;
-
+      // Cargar todos los datos necesarios
+      final products = await _firestoreService.getProducts();
+      final sales = await _firestoreService.getSales();
+      final movements = await _firestoreService.getMovements();
+      final categories = await _firestoreService.getCategories();
+      
       // Calcular estadísticas
       final totalProducts = products.length;
       final totalSales = sales.length;
       final totalRevenue = sales.fold<double>(0, (sum, sale) => sum + sale.amount);
       final totalCategories = categories.length;
-      final recentMovements = movements.take(10).toList();
-
+      
+      // Calcular movimientos recientes (última semana)
+      final now = DateTime.now();
+      final lastWeek = now.subtract(const Duration(days: 7));
+      final recentMovements = movements.where((movement) => 
+        movement.date.isAfter(lastWeek)
+      ).toList();
+      
       _dashboardData = DashboardData(
         totalProducts: totalProducts,
         totalSales: totalSales,
@@ -90,85 +55,29 @@ class DashboardViewModel extends ChangeNotifier {
         sales: sales,
         categories: categories,
       );
-
+      
+      print('✅ Dashboard data cargado exitosamente');
+      print('  - Productos: $totalProducts');
+      print('  - Ventas: $totalSales');
+      print('  - Ingresos: \$${totalRevenue.toStringAsFixed(2)}');
+      print('  - Movimientos: ${recentMovements.length}');
+      
+      _isLoading = false;
       notifyListeners();
-    } catch (e) {
-      _setError(e.toString());
-    } finally {
-      _setLoading(false);
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
-  // Método para cargar datos con organizationId específico
-  Future<void> loadDashboardDataForOrganization(String organizationId) async {
-    _setLoading(true);
-    _clearError();
-
-    try {
-      final currentUser = _authService.currentUser;
-      if (currentUser == null) {
-        _setError('Usuario no autenticado');
-        return;
-      }
-
-      // Cargar datos en paralelo usando el organizationId proporcionado
-      final results = await Future.wait([
-        _syncService.getProducts(organizationId),
-        _syncService.getSales(organizationId),
-        _syncService.getCategories(organizationId),
-        _syncService.getMovements(organizationId),
-      ]);
-
-      final products = results[0] as List<Product>;
-      final sales = results[1] as List<Sale>;
-      final categories = results[2] as List<app_category.Category>;
-      final movements = results[3] as List<Movement>;
-
-      // Calcular estadísticas
-      final totalProducts = products.length;
-      final totalSales = sales.length;
-      final totalRevenue = sales.fold<double>(0, (sum, sale) => sum + sale.amount);
-      final totalCategories = categories.length;
-      final recentMovements = movements.take(10).toList();
-
-      _dashboardData = DashboardData(
-        totalProducts: totalProducts,
-        totalSales: totalSales,
-        totalRevenue: totalRevenue,
-        totalCategories: totalCategories,
-        recentMovements: recentMovements,
-        products: products,
-        sales: sales,
-        categories: categories,
-      );
-
-      notifyListeners();
-    } catch (e) {
-      _setError(e.toString());
-    } finally {
-      _setLoading(false);
-    }
+  void clearError() {
+    _error = null;
+    notifyListeners();
   }
 
   void clearData() {
     _dashboardData = null;
-    _currentOrganization = null;
-    _clearError();
     notifyListeners();
-  }
-
-  // Métodos privados
-  void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
-  }
-
-  void _setError(String error) {
-    _error = error;
-    notifyListeners();
-  }
-
-  void _clearError() {
-    _error = null;
   }
 } 

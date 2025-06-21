@@ -4,7 +4,6 @@ import '../models/product.dart';
 import '../models/sale.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/sale_viewmodel.dart';
-import '../viewmodels/organization_viewmodel.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 import '../widgets/mobile_navigation.dart';
@@ -42,12 +41,7 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
   }
 
   Future<void> _loadProducts() async {
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId != null) {
-      await context.read<ProductViewModel>().loadProducts(organizationId);
-    }
+    await context.read<ProductViewModel>().loadProducts();
   }
 
   void _selectProduct(Product product) {
@@ -70,15 +64,12 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
   Future<void> _saveSale() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedProductId == null) {
-      context.showError('Seleccione un producto');
-      return;
-    }
-
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId == null) {
-      context.showError('No se pudo obtener la información de la organización');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Seleccione un producto'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
@@ -89,7 +80,12 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
     try {
       final userId = context.read<AuthService>().currentUser?.uid;
       if (userId == null) {
-        context.showError('No hay usuario autenticado');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No hay usuario autenticado'),
+            backgroundColor: Colors.red,
+          ),
+        );
         return;
       }
 
@@ -102,7 +98,6 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
         quantity: _quantity,
         date: DateTime.now(),
         notes: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
-        organizationId: organizationId,
       );
 
       final success = await context.read<SaleViewModel>().addSale(sale);
@@ -119,7 +114,12 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
       }
     } catch (e) {
       if (mounted) {
-        context.showError(e);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } finally {
       if (mounted) {

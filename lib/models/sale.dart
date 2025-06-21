@@ -9,7 +9,6 @@ class Sale {
   final double amount;
   final int quantity;
   final DateTime date;
-  final String organizationId;
   final String? notes;
 
   Sale({
@@ -20,7 +19,6 @@ class Sale {
     required this.amount,
     required this.quantity,
     required this.date,
-    required this.organizationId,
     this.notes,
   });
 
@@ -33,7 +31,6 @@ class Sale {
       amount: (map['amount'] as num).toDouble(),
       quantity: map['quantity'] as int,
       date: (map['date'] as Timestamp).toDate(),
-      organizationId: map['organizationId'] as String,
       notes: map['notes'] as String?,
     );
   }
@@ -46,7 +43,6 @@ class Sale {
       'amount': amount,
       'quantity': quantity,
       'date': Timestamp.fromDate(date),
-      'organizationId': organizationId,
       'notes': notes,
     };
   }

@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../models/product.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
-import '../viewmodels/organization_viewmodel.dart';
 import '../utils/error_handler.dart';
-import '../widgets/custom_text_field.dart';
-import '../widgets/custom_button.dart';
-import '../widgets/loading_overlay.dart';
 import '../widgets/mobile_navigation.dart';
 import 'home_screen.dart';
 
@@ -48,33 +43,25 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Future<void> _loadCategories() async {
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId != null) {
-      await context.read<CategoryViewModel>().loadCategories(organizationId);
-      setState(() {
-        _categories = context.read<CategoryViewModel>().categories.map((e) => e.name).toList();
-        if (_categories.isNotEmpty) {
-          _selectedCategory = _categories.first;
-        }
-      });
-    }
+    await context.read<CategoryViewModel>().loadCategories();
+    setState(() {
+      _categories = context.read<CategoryViewModel>().categories.map((e) => e.name).toList();
+      if (_categories.isNotEmpty) {
+        _selectedCategory = _categories.first;
+      }
+    });
   }
 
   Future<void> _saveProduct() async {
     if (!_formKey.currentState!.validate()) return;
     
     if (_selectedCategory == null) {
-      context.showError('Por favor seleccione una categoría');
-      return;
-    }
-
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId == null) {
-      context.showError('No se pudo obtener la información de la organización');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor seleccione una categoría'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
@@ -93,7 +80,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
         minStock: int.parse(_minStockController.text),
         maxStock: int.parse(_maxStockController.text),
         categoryId: category.id,
-        organizationId: organizationId,
         createdAt: now,
         updatedAt: now,
       );
@@ -110,7 +96,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
       }
     } catch (e) {
       if (mounted) {
-        context.showError(e);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }

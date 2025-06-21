@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import '../widgets/adaptive_navigation.dart';
-import '../widgets/mobile_navigation.dart';
-import '../widgets/responsive_layout.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
 import '../theme/responsive.dart';
+import '../viewmodels/auth_viewmodel.dart';
 import 'dashboard_screen.dart';
 import 'product_list_screen.dart';
 import 'category_management_screen.dart';
@@ -11,6 +10,7 @@ import 'movement_history_screen.dart';
 import 'sales_screen.dart';
 import 'add_sale_screen.dart';
 import '../services/sync_service.dart';
+import '../widgets/custom_snackbar.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,17 +19,82 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _selectedIndex = 0;
   final _authService = AuthService();
   String _username = '';
   final SyncService _syncService = SyncService();
+  bool _isDrawerOpen = false;
+  bool _isHovering = false;
+  late AnimationController _drawerAnimationController;
+  late AnimationController _hoverAnimationController;
+  late Animation<double> _drawerAnimation;
+  late Animation<double> _hoverAnimation;
+
+  // Menú items con iconos y colores personalizados
+  final List<MenuItemData> _menuItems = [
+    MenuItemData(
+      icon: Icons.dashboard_outlined,
+      selectedIcon: Icons.dashboard,
+      label: 'Dashboard',
+      color: Colors.yellow,
+    ),
+    MenuItemData(
+      icon: Icons.inventory_2_outlined,
+      selectedIcon: Icons.inventory_2,
+      label: 'Productos',
+      color: Colors.orange,
+    ),
+    MenuItemData(
+      icon: Icons.category_outlined,
+      selectedIcon: Icons.category,
+      label: 'Categorías',
+      color: Colors.amber,
+    ),
+    MenuItemData(
+      icon: Icons.history_outlined,
+      selectedIcon: Icons.history,
+      label: 'Movimientos',
+      color: Colors.yellow.shade700,
+    ),
+    MenuItemData(
+      icon: Icons.shopping_cart_outlined,
+      selectedIcon: Icons.shopping_cart,
+      label: 'Ventas',
+      color: Colors.orange.shade700,
+    ),
+  ];
 
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
     _syncService.initialize();
+    
+    _drawerAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _hoverAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    
+    _drawerAnimation = CurvedAnimation(
+      parent: _drawerAnimationController,
+      curve: Curves.easeInOut,
+    );
+    _hoverAnimation = CurvedAnimation(
+      parent: _hoverAnimationController,
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _drawerAnimationController.dispose();
+    _hoverAnimationController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserProfile() async {
@@ -49,11 +114,16 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       await _authService.signOut();
       if (mounted) {
+        CustomSnackBar.showInfo(
+          context: context,
+          message: 'Sesión cerrada exitosamente',
+        );
         Navigator.of(context).pushReplacementNamed('/login');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al cerrar sesión: ${e.toString()}')),
+      CustomSnackBar.showError(
+        context: context,
+        message: 'Error al cerrar sesión: ${e.toString()}',
       );
     }
   }
@@ -61,6 +131,10 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
+      if (Responsive.isMobile(context)) {
+        _isDrawerOpen = false;
+        _drawerAnimationController.reverse();
+      }
     });
   }
 
@@ -70,228 +144,767 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Widget _buildAppBarTitle() {
-    return StreamBuilder<bool>(
-      stream: _syncService.connectivityStream,
-      builder: (context, snapshot) {
-        final isOnline = snapshot.data ?? _syncService.isOnline;
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.inventory, color: Theme.of(context).primaryColor),
-            const SizedBox(width: 8),
-            const Text(
-              'Skadi Stock',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
+  PreferredSizeWidget _buildAppBar() {
+    final theme = Theme.of(context);
+    final isMobile = Responsive.isMobile(context);
+    
+    return AppBar(
+      backgroundColor: Colors.black,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      automaticallyImplyLeading: false,
+      centerTitle: true,
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Image.asset(
+            'assets/images/logo.png',
+            height: 48,
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Planeta Motos',
+            style: GoogleFonts.bebasNeue(
+              fontSize: 28,
+              color: Colors.yellow,
+              letterSpacing: 1.5,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        // Online Indicator
+        Container(
+          margin: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: Colors.green,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Online',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (isMobile)
+          IconButton(
+            icon: Icon(
+              _isDrawerOpen ? Icons.close : Icons.menu,
+              color: Colors.white,
+            ),
+            onPressed: () {
+              setState(() {
+                _isDrawerOpen = !_isDrawerOpen;
+                if (_isDrawerOpen) {
+                  _drawerAnimationController.forward();
+                } else {
+                  _drawerAnimationController.reverse();
+                }
+              });
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSidebar() {
+    return Container(
+      width: 280,
+      decoration: BoxDecoration(
+        color: Colors.black,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(2, 0),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header del sidebar con diseño mejorado
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              border: Border(
+                bottom: BorderSide(color: Colors.yellow.withOpacity(0.3), width: 2),
               ),
             ),
-            const SizedBox(width: 12),
-            Text(
-              isOnline ? 'Online' : 'Offline',
-              style: TextStyle(
-                color: isOnline ? Colors.green : Colors.red,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.yellow.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.yellow.withOpacity(0.3), width: 1),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.yellow.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.person,
+                          color: Colors.yellow,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _username,
+                        style: GoogleFonts.inter(
+                          fontSize: 18,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.yellow, Colors.orange],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Usuario Conectado',
+                    style: GoogleFonts.inter(
+                      color: Colors.black,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Menú items con nuevo diseño
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              itemCount: _menuItems.length,
+              itemBuilder: (context, index) {
+                final item = _menuItems[index];
+                final isSelected = _selectedIndex == index;
+                
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _onItemTapped(index),
+                      borderRadius: BorderRadius.circular(16),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        decoration: BoxDecoration(
+                          color: isSelected ? item.color.withOpacity(0.2) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                          border: isSelected 
+                            ? Border.all(color: item.color, width: 2)
+                            : Border.all(color: Colors.grey.shade700, width: 1),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isSelected ? item.color : Colors.grey.shade700,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                isSelected ? item.selectedIcon : item.icon,
+                                color: isSelected ? Colors.black : Colors.grey.shade300,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Text(
+                                item.label,
+                                style: GoogleFonts.inter(
+                                  color: isSelected ? item.color : Colors.grey.shade300,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: item.color,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          
+          // Footer del sidebar con botón de logout
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              border: Border(
+                top: BorderSide(color: Colors.yellow.withOpacity(0.3), width: 1),
               ),
             ),
-          ],
+            child: Column(
+              children: [
+                // Información de versión
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade800.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.yellow,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Alpha v1.0.0',
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Créditos del desarrollador
+                Column(
+                  children: [
+                    Text(
+                      'Desarrollado por',
+                      style: GoogleFonts.inter(
+                        color: Colors.grey.shade400,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Hid33nStudios',
+                      style: GoogleFonts.inter(
+                        color: Colors.yellow,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'para Planeta Motos',
+                      style: GoogleFonts.inter(
+                        color: Colors.grey.shade300,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                // Botón de logout
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _signOut,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.red.shade600, Colors.red.shade700],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.logout,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Cerrar Sesión',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactSidebar() {
+    return MouseRegion(
+      onEnter: (_) {
+        if (!Responsive.isMobile(context)) {
+          setState(() => _isHovering = true);
+          _hoverAnimationController.forward();
+        }
+      },
+      onExit: (_) {
+        if (!Responsive.isMobile(context)) {
+          setState(() => _isHovering = false);
+          _hoverAnimationController.reverse();
+        }
+      },
+      child: AnimatedBuilder(
+        animation: _hoverAnimation,
+        builder: (context, child) {
+          final width = _isHovering ? 200.0 : 70.0;
+          
+          return Container(
+            width: width,
+            decoration: BoxDecoration(
+              color: Colors.black,
+              border: Border(
+                right: BorderSide(color: Colors.yellow.withOpacity(0.3), width: 1),
+              ),
+            ),
+            child: Column(
+              children: [
+                // Header compacto
+                Container(
+                  height: 70,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    border: Border(
+                      bottom: BorderSide(color: Colors.yellow.withOpacity(0.3), width: 1),
+                    ),
+                  ),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    child: _isHovering
+                      ? Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.yellow.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                Icons.person,
+                                color: Colors.yellow,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                _username,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.yellow.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.person,
+                              color: Colors.yellow,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                  ),
+                ),
+                
+                // Menú items compactos
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    itemCount: _menuItems.length,
+                    itemBuilder: (context, index) {
+                      final item = _menuItems[index];
+                      final isSelected = _selectedIndex == index;
+                      
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => _onItemTapped(index),
+                            borderRadius: BorderRadius.circular(8),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: _isHovering ? 16 : 12,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected ? item.color.withOpacity(0.2) : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: isSelected 
+                                  ? Border.all(color: item.color, width: 1)
+                                  : null,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isSelected ? item.selectedIcon : item.icon,
+                                    color: isSelected ? item.color : Colors.grey.shade400,
+                                    size: 20,
+                                  ),
+                                  if (_isHovering) ...[
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        item.label,
+                                        style: GoogleFonts.inter(
+                                          color: isSelected ? item.color : Colors.grey.shade300,
+                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                          fontSize: 14,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                
+                // Footer compacto con botón de logout
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isHovering)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 16, 8, 16),
+                        child: Column(
+                          children: [
+                            Text(
+                              'Alpha v1.0.0',
+                              style: GoogleFonts.inter(
+                                color: Colors.grey.shade400,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Desarrollado por',
+                              style: GoogleFonts.inter(
+                                color: Colors.grey.shade500,
+                                fontSize: 10,
+                              ),
+                            ),
+                            Text(
+                              'Hid33nStudios',
+                              style: GoogleFonts.inter(
+                                color: Colors.yellow,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'para Planeta Motos',
+                              style: GoogleFonts.inter(
+                                color: Colors.grey.shade500,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    SizedBox(
+                      height: 70,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _signOut,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Center(
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              margin: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: _isHovering ? Colors.red.shade600 : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.red.shade600,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: _isHovering
+                                  ? Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.logout,
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Salir',
+                                            style: GoogleFonts.inter(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Icon(
+                                      Icons.logout,
+                                      color: Colors.red.shade600,
+                                      size: 24,
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMobileDrawer() {
+    return AnimatedBuilder(
+      animation: _drawerAnimation,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(
+            _isDrawerOpen ? 0 : -280,
+            0,
+          ),
+          child: Container(
+            width: 280,
+            height: double.infinity,
+            child: _buildSidebar(),
+          ),
         );
       },
     );
   }
 
+  Widget _buildContent() {
+    return IndexedStack(
+      index: _selectedIndex,
+      children: [
+        const DashboardScreen(showAppBar: false),
+        const ProductListScreen(),
+        const CategoryManagementScreen(),
+        const MovementHistoryScreen(),
+        const SalesScreen(),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 600;
-    final isTablet = MediaQuery.of(context).size.width >= 600 && MediaQuery.of(context).size.width < 1200;
-
+    final isMobile = Responsive.isMobile(context);
+    
     if (isMobile) {
-      return _buildMobileLayout();
-    } else if (isTablet) {
-      return _buildTabletLayout();
+      return Scaffold(
+        appBar: _buildAppBar(),
+        body: Stack(
+          children: [
+            _buildContent(),
+            if (_isDrawerOpen)
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _isDrawerOpen = false;
+                      _drawerAnimationController.reverse();
+                    });
+                  },
+                  child: Container(
+                    color: Colors.black.withOpacity(0.5),
+                  ),
+                ),
+              ),
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              child: _buildMobileDrawer(),
+            ),
+          ],
+        ),
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black,
+                Colors.grey.shade900,
+              ],
+            ),
+            border: Border(
+              top: BorderSide(color: Colors.yellow.withOpacity(0.3), width: 1),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 10,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: NavigationBar(
+            backgroundColor: Colors.transparent,
+            indicatorColor: Colors.yellow.withOpacity(0.2),
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: _onItemTapped,
+            labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+            height: 70,
+            elevation: 0,
+            destinations: _menuItems.map((item) {
+              final isSelected = _selectedIndex == _menuItems.indexOf(item);
+              return NavigationDestination(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? item.color.withOpacity(0.2) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    item.icon,
+                    color: isSelected ? item.color : Colors.grey.shade400,
+                    size: 24,
+                  ),
+                ),
+                selectedIcon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: item.color.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: item.color, width: 1),
+                  ),
+                  child: Icon(
+                    item.selectedIcon,
+                    color: item.color,
+                    size: 24,
+                  ),
+                ),
+                label: item.label,
+              );
+            }).toList(),
+          ),
+        ),
+      );
     } else {
-      return _buildDesktopLayout();
-    }
-  }
-
-  Widget _buildMobileLayout() {
-    return HomeScreenProvider(
-      navigateToIndex: navigateToIndex,
-      child: Scaffold(
-        appBar: AppBar(
-          centerTitle: true,
-          title: _buildAppBarTitle(),
-          automaticallyImplyLeading: false,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: _signOut,
-            ),
-          ],
-        ),
-        body: IndexedStack(
-          index: _selectedIndex,
-          children: [
-            const DashboardScreen(showAppBar: false),
-            const ProductListScreen(),
-            const CategoryManagementScreen(),
-            const MovementHistoryScreen(),
-            const SalesScreen(),
-          ],
-        ),
-        bottomNavigationBar: MobileNavigation(
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: _onItemTapped,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabletLayout() {
-    return HomeScreenProvider(
-      navigateToIndex: navigateToIndex,
-      child: Scaffold(
-        appBar: AppBar(
-          centerTitle: true,
-          title: _buildAppBarTitle(),
-          automaticallyImplyLeading: false,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: _signOut,
-            ),
-          ],
-        ),
+      return Scaffold(
+        appBar: _buildAppBar(),
         body: Row(
           children: [
-            NavigationRail(
-              extended: true,
-              destinations: const [
-                NavigationRailDestination(
-                  icon: Icon(Icons.dashboard),
-                  label: Text('Dashboard'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.inventory),
-                  label: Text('Productos'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.category),
-                  label: Text('Categorías'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.history),
-                  label: Text('Movimientos'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.shopping_cart),
-                  label: Text('Ventas'),
-                ),
-              ],
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: _onItemTapped,
-            ),
-            const VerticalDivider(thickness: 1, width: 1),
+            _buildCompactSidebar(),
+            const VerticalDivider(thickness: 1, width: 1, color: Colors.grey),
             Expanded(
-              child: IndexedStack(
-                index: _selectedIndex,
-                children: [
-                  const DashboardScreen(showAppBar: false),
-                  const ProductListScreen(),
-                  const CategoryManagementScreen(),
-                  const MovementHistoryScreen(),
-                  const SalesScreen(),
-                ],
-              ),
+              child: _buildContent(),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildDesktopLayout() {
-    return HomeScreenProvider(
-      navigateToIndex: navigateToIndex,
-      child: Scaffold(
-        appBar: AppBar(
-          centerTitle: true,
-          title: _buildAppBarTitle(),
-          automaticallyImplyLeading: false,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: _signOut,
-            ),
-          ],
-        ),
-        body: Row(
-          children: [
-            NavigationRail(
-              extended: true,
-              destinations: const [
-                NavigationRailDestination(
-                  icon: Icon(Icons.dashboard),
-                  label: Text('Dashboard'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.inventory),
-                  label: Text('Productos'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.category),
-                  label: Text('Categorías'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.history),
-                  label: Text('Movimientos'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.shopping_cart),
-                  label: Text('Ventas'),
-                ),
-              ],
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: _onItemTapped,
-            ),
-            const VerticalDivider(thickness: 1, width: 1),
-            Expanded(
-              child: IndexedStack(
-                index: _selectedIndex,
-                children: [
-                  const DashboardScreen(showAppBar: false),
-                  const ProductListScreen(),
-                  const CategoryManagementScreen(),
-                  const MovementHistoryScreen(),
-                  const SalesScreen(),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _getTitle(int index) {
-    switch (index) {
-      case 0:
-        return 'Dashboard';
-      case 1:
-        return 'Productos';
-      case 2:
-        return 'Categorías';
-      case 3:
-        return 'Movimientos';
-      case 4:
-        return 'Ventas';
-      default:
-        return 'Dashboard';
+      );
     }
   }
+}
+
+class MenuItemData {
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final Color color;
+
+  MenuItemData({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+    required this.color,
+  });
 }
 
 class HomeScreenProvider extends InheritedWidget {

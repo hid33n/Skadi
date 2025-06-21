@@ -7,7 +7,6 @@ import '../theme/responsive.dart';
 import '../services/auth_service.dart';
 import '../services/sync_service.dart';
 import '../utils/error_handler.dart';
-import '../viewmodels/organization_viewmodel.dart';
 
 class DashboardScreen extends StatefulWidget {
   final bool showAppBar;
@@ -44,7 +43,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadDashboardData() async {
     final dashboardViewModel = context.read<DashboardViewModel>();
+    print('🔄 Iniciando carga de datos del dashboard...');
     await dashboardViewModel.loadDashboardData();
+    print('✅ Carga de datos del dashboard completada');
+    print('📊 Estado del dashboard:');
+    print('  - isLoading: ${dashboardViewModel.isLoading}');
+    print('  - error: ${dashboardViewModel.error}');
+    print('  - dashboardData: ${dashboardViewModel.dashboardData != null ? "disponible" : "null"}');
+    if (dashboardViewModel.dashboardData != null) {
+      print('  - totalProducts: ${dashboardViewModel.dashboardData!.totalProducts}');
+      print('  - totalSales: ${dashboardViewModel.dashboardData!.totalSales}');
+      print('  - totalRevenue: ${dashboardViewModel.dashboardData!.totalRevenue}');
+    }
   }
 
   Future<void> _signOut() async {
@@ -62,11 +72,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final organizationVM = context.watch<OrganizationViewModel>();
-    if (organizationVM.currentUser == null || organizationVM.currentOrganization == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
     final body = RefreshIndicator(
       onRefresh: () => context.read<DashboardViewModel>().loadDashboardData(),
       child: SingleChildScrollView(
@@ -82,7 +87,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             
             Consumer<DashboardViewModel>(
               builder: (context, viewModel, _) {
+                print('🎨 Construyendo dashboard UI...');
+                print('  - isLoading: ${viewModel.isLoading}');
+                print('  - error: ${viewModel.error}');
+                print('  - dashboardData: ${viewModel.dashboardData != null ? "disponible" : "null"}');
+                
                 if (viewModel.isLoading) {
+                  print('⏳ Mostrando loading...');
                   return const Center(
                     child: Padding(
                       padding: EdgeInsets.all(16.0),
@@ -92,6 +103,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 }
 
                 if (viewModel.error != null) {
+                  print('❌ Mostrando error: ${viewModel.error}');
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -120,6 +132,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   );
                 }
 
+                print('✅ Mostrando DashboardGrid...');
                 return const DashboardGrid();
               },
             ),

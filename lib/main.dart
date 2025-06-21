@@ -3,40 +3,29 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
-import 'services/user_data_service.dart';
-import 'services/sync_service.dart';
+import 'services/firestore_service.dart';
 import 'viewmodels/product_viewmodel.dart';
 import 'viewmodels/category_viewmodel.dart';
 import 'viewmodels/movement_viewmodel.dart';
 import 'viewmodels/sale_viewmodel.dart';
 import 'viewmodels/theme_viewmodel.dart';
 import 'viewmodels/dashboard_viewmodel.dart';
-import 'viewmodels/organization_viewmodel.dart';
 import 'viewmodels/auth_viewmodel.dart';
+import 'viewmodels/sync_viewmodel.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
-import 'screens/organization_setup_screen.dart';
 import 'screens/add_sale_screen.dart';
 import 'screens/add_product_screen.dart';
-import 'widgets/page_transition.dart';
 import 'theme/app_theme.dart';
+import 'theme/theme_provider.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
-
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  
-  // Inicializar servicios de sincronización
-  try {
-    final syncService = SyncService();
-    await syncService.initialize();
-  } catch (e) {
-    debugPrint('Error al inicializar sincronización: $e');
-  }
   
   await SentryFlutter.init(
     (options) {
@@ -64,42 +53,96 @@ class MyApp extends StatelessWidget {
         Provider<AuthService>(
           create: (_) => AuthService(),
         ),
-        Provider<UserDataService>(
-          create: (_) => UserDataService(),
+        Provider<FirestoreService>(
+          create: (context) => FirestoreService(context.read<AuthService>()),
         ),
-        Provider<SyncService>(
-          create: (_) => SyncService(),
+        ChangeNotifierProvider<ThemeProvider>(
+          create: (_) => ThemeProvider(),
         ),
         // ViewModels
-        ChangeNotifierProvider<ProductViewModel>(
-          create: (_) => ProductViewModel(),
+        ChangeNotifierProxyProvider<FirestoreService, ProductViewModel>(
+          create: (context) => ProductViewModel(
+            context.read<FirestoreService>(),
+            context.read<AuthService>(),
+          ),
+          update: (context, firestoreService, previous) => ProductViewModel(
+            firestoreService,
+            context.read<AuthService>(),
+          ),
         ),
-        ChangeNotifierProvider<CategoryViewModel>(
-          create: (_) => CategoryViewModel(),
+        ChangeNotifierProxyProvider<FirestoreService, CategoryViewModel>(
+          create: (context) => CategoryViewModel(
+            context.read<FirestoreService>(),
+            context.read<AuthService>(),
+          ),
+          update: (context, firestoreService, previous) => CategoryViewModel(
+            firestoreService,
+            context.read<AuthService>(),
+          ),
         ),
-        ChangeNotifierProvider<MovementViewModel>(
-          create: (_) => MovementViewModel(),
+        ChangeNotifierProxyProvider<FirestoreService, MovementViewModel>(
+          create: (context) => MovementViewModel(
+            context.read<FirestoreService>(),
+            context.read<AuthService>(),
+          ),
+          update: (context, firestoreService, previous) => MovementViewModel(
+            firestoreService,
+            context.read<AuthService>(),
+          ),
         ),
-        ChangeNotifierProvider<SaleViewModel>(
-          create: (_) => SaleViewModel(),
+        ChangeNotifierProxyProvider<FirestoreService, SaleViewModel>(
+          create: (context) => SaleViewModel(
+            context.read<FirestoreService>(),
+            context.read<AuthService>(),
+          ),
+          update: (context, firestoreService, previous) => SaleViewModel(
+            firestoreService,
+            context.read<AuthService>(),
+          ),
         ),
-        ChangeNotifierProvider<DashboardViewModel>(
-          create: (_) => DashboardViewModel(),
+        ChangeNotifierProxyProvider<FirestoreService, DashboardViewModel>(
+          create: (context) => DashboardViewModel(
+            context.read<FirestoreService>(),
+            context.read<AuthService>(),
+          ),
+          update: (context, firestoreService, previous) => DashboardViewModel(
+            firestoreService,
+            context.read<AuthService>(),
+          ),
         ),
-        ChangeNotifierProvider<ThemeViewModel>(
-          create: (_) => ThemeViewModel(),
+        ChangeNotifierProxyProvider<ThemeProvider, ThemeViewModel>(
+          create: (context) => ThemeViewModel(
+            context.read<ThemeProvider>(),
+          ),
+          update: (context, themeProvider, previous) => ThemeViewModel(
+            themeProvider,
+          ),
         ),
-        ChangeNotifierProvider<OrganizationViewModel>(
-          create: (_) => OrganizationViewModel(),
+        ChangeNotifierProxyProvider<FirestoreService, SyncViewModel>(
+          create: (context) => SyncViewModel(
+            context.read<FirestoreService>(),
+            context.read<AuthService>(),
+          ),
+          update: (context, firestoreService, previous) => SyncViewModel(
+            firestoreService,
+            context.read<AuthService>(),
+          ),
         ),
-        ChangeNotifierProvider<AuthViewModel>(
-          create: (context) => AuthViewModel(context.read<AuthService>()),
+        ChangeNotifierProxyProvider<AuthService, AuthViewModel>(
+          create: (context) => AuthViewModel(
+            context.read<AuthService>(),
+            context.read<FirestoreService>(),
+          ),
+          update: (context, authService, previous) => AuthViewModel(
+            authService,
+            context.read<FirestoreService>(),
+          ),
         ),
       ],
       child: Consumer<ThemeViewModel>(
         builder: (context, themeViewModel, _) {
           return MaterialApp(
-            title: 'Skadi',
+            title: 'PM-Skadi',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
@@ -123,14 +166,11 @@ class MyApp extends StatelessWidget {
                 case '/add-product':
                   page = const AddProductScreen();
                   break;
-                case '/organization-setup':
-                  page = const OrganizationSetupScreen();
-                  break;
                 default:
                   page = const LoginScreen();
               }
-              return PageTransition(
-                page: page,
+              return MaterialPageRoute(
+                builder: (context) => page,
                 settings: settings,
               );
             },

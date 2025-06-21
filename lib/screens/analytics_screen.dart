@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/sale_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
-import '../viewmodels/organization_viewmodel.dart';
 import '../models/category.dart';
 import '../utils/error_handler.dart';
 
@@ -24,20 +23,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   Future<void> _loadData() async {
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId != null) {
-      await context.read<ProductViewModel>().loadProducts(organizationId);
-      await context.read<SaleViewModel>().loadSales(organizationId);
-      await context.read<CategoryViewModel>().loadCategories(organizationId);
-    }
+    await context.read<ProductViewModel>().loadProducts();
+    await context.read<SaleViewModel>().loadSales();
+    await context.read<CategoryViewModel>().loadCategories();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer4<ProductViewModel, SaleViewModel, CategoryViewModel, OrganizationViewModel>(
-      builder: (context, productVM, saleVM, categoryVM, orgVM, child) {
+    return Consumer3<ProductViewModel, SaleViewModel, CategoryViewModel>(
+      builder: (context, productVM, saleVM, categoryVM, child) {
         if (productVM.isLoading || saleVM.isLoading || categoryVM.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -48,10 +42,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           errorMessages.add(productVM.error!);
         }
         if (saleVM.error != null) {
-          errorMessages.add(saleVM.error!.message);
+          errorMessages.add(saleVM.error!);
         }
         if (categoryVM.error != null) {
-          errorMessages.add(categoryVM.error!.message);
+          errorMessages.add(categoryVM.error!);
         }
 
         if (errorMessages.isNotEmpty) {
@@ -479,7 +473,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 id: 'unknown',
                 name: 'Sin categoría',
                 description: 'Producto sin categoría asignada',
-                organizationId: '',
                 createdAt: DateTime.now(),
                 updatedAt: DateTime.now(),
               ));

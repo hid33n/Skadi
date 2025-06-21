@@ -10,7 +10,47 @@ class SalesChart extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<SaleViewModel>(
       builder: (context, viewModel, _) {
-        final salesData = viewModel.getSalesByPeriod();
+        if (viewModel.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (viewModel.error != null) {
+          return Center(
+            child: Text(
+              'Error: ${viewModel.error}',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          );
+        }
+
+        final sales = viewModel.sales;
+        if (sales.isEmpty) {
+          return const Center(
+            child: Text('No hay datos de ventas disponibles'),
+          );
+        }
+
+        // Agrupar ventas por día (últimos 7 días)
+        final now = DateTime.now();
+        final salesByDay = <String, double>{};
+        
+        for (int i = 6; i >= 0; i--) {
+          final date = now.subtract(Duration(days: i));
+          final dateKey = '${date.day}/${date.month}';
+          salesByDay[dateKey] = 0.0;
+        }
+
+        // Sumar ventas por día
+        for (final sale in sales) {
+          final saleDate = sale.date;
+          if (saleDate.isAfter(now.subtract(const Duration(days: 7)))) {
+            final dateKey = '${saleDate.day}/${saleDate.month}';
+            salesByDay[dateKey] = (salesByDay[dateKey] ?? 0.0) + sale.amount;
+          }
+        }
+
+        final salesData = salesByDay.values.toList();
+        final dates = salesByDay.keys.toList();
         
         return LineChart(
           LineChartData(
@@ -35,9 +75,9 @@ class SalesChart extends StatelessWidget {
                 sideTitles: SideTitles(
                   showTitles: true,
                   getTitlesWidget: (value, meta) {
-                    if (value.toInt() >= salesData.length) return const Text('');
+                    if (value.toInt() >= dates.length) return const Text('');
                     return Text(
-                      salesData[value.toInt()].date,
+                      dates[value.toInt()],
                       style: const TextStyle(
                         color: Colors.grey,
                         fontSize: 10,
@@ -57,7 +97,7 @@ class SalesChart extends StatelessWidget {
             lineBarsData: [
               LineChartBarData(
                 spots: salesData.asMap().entries.map((entry) {
-                  return FlSpot(entry.key.toDouble(), entry.value.amount);
+                  return FlSpot(entry.key.toDouble(), entry.value);
                 }).toList(),
                 isCurved: true,
                 color: Theme.of(context).colorScheme.primary,
@@ -66,7 +106,7 @@ class SalesChart extends StatelessWidget {
                 dotData: FlDotData(show: false),
                 belowBarData: BarAreaData(
                   show: true,
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                 ),
               ),
             ],
@@ -79,7 +119,7 @@ class SalesChart extends StatelessWidget {
                     final index = spot.x.toInt();
                     if (index >= salesData.length) return null;
                     return LineTooltipItem(
-                      '\$${salesData[index].amount.toStringAsFixed(2)}',
+                      '\$${salesData[index].toStringAsFixed(2)}',
                       TextStyle(
                         color: Theme.of(context).colorScheme.onSurface,
                         fontWeight: FontWeight.bold,

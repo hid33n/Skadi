@@ -19,9 +19,6 @@ class MigrationService {
       // Migrar movimientos
       await _migrateMovements();
       
-      // Migrar organizaciones
-      await _migrateOrganizations();
-      
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
     }
@@ -37,11 +34,9 @@ class MigrationService {
         
         // Crear la nueva estructura
         await _firestore
-            .collection('users')
+            .collection('pm')
             .doc(userId)
-            .collection('data')
-            .doc('products')
-            .collection('items')
+            .collection('products')
             .doc(doc.id)
             .set(productData);
             
@@ -63,11 +58,9 @@ class MigrationService {
         
         // Crear la nueva estructura
         await _firestore
-            .collection('users')
+            .collection('pm')
             .doc(userId)
-            .collection('data')
-            .doc('categories')
-            .collection('items')
+            .collection('categories')
             .doc(doc.id)
             .set(categoryData);
             
@@ -89,11 +82,9 @@ class MigrationService {
         
         // Crear la nueva estructura
         await _firestore
-            .collection('users')
+            .collection('pm')
             .doc(userId)
-            .collection('data')
-            .doc('sales')
-            .collection('items')
+            .collection('sales')
             .doc(doc.id)
             .set(saleData);
             
@@ -115,37 +106,11 @@ class MigrationService {
         
         // Crear la nueva estructura
         await _firestore
-            .collection('users')
+            .collection('pm')
             .doc(userId)
-            .collection('data')
-            .doc('movements')
-            .collection('items')
+            .collection('movements')
             .doc(doc.id)
             .set(movementData);
-            
-        // Eliminar el documento original
-        await doc.reference.delete();
-      }
-    } catch (e, stackTrace) {
-      throw AppError.fromException(e, stackTrace);
-    }
-  }
-
-  Future<void> _migrateOrganizations() async {
-    try {
-      final organizationsSnapshot = await _firestore.collection('organizations').get();
-      
-      for (final doc in organizationsSnapshot.docs) {
-        final organizationData = doc.data();
-        final ownerId = organizationData['ownerId'] as String? ?? 'default';
-        
-        // Crear la nueva estructura
-        await _firestore
-            .collection('users')
-            .doc(ownerId)
-            .collection('profile')
-            .doc('organization')
-            .set(organizationData);
             
         // Eliminar el documento original
         await doc.reference.delete();
@@ -159,7 +124,7 @@ class MigrationService {
   Future<bool> needsMigration() async {
     try {
       // Verificar si existen colecciones en la estructura antigua
-      final oldCollections = ['products', 'categories', 'sales', 'movements', 'organizations'];
+      final oldCollections = ['products', 'categories', 'sales', 'movements'];
       
       for (final collectionName in oldCollections) {
         final snapshot = await _firestore.collection(collectionName).limit(1).get();
@@ -177,7 +142,7 @@ class MigrationService {
   /// Crear estructura inicial para un usuario nuevo
   Future<void> initializeUserStructure(String userId) async {
     try {
-      final userDataRef = _firestore.collection('users').doc(userId).collection('data');
+      final userDataRef = _firestore.collection('pm').doc(userId).collection('data');
       
       await Future.wait([
         userDataRef.doc('products').set({'createdAt': FieldValue.serverTimestamp()}),
