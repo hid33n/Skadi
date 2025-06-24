@@ -173,7 +173,6 @@ class _AppInitializerState extends State<AppInitializer> {
       setState(() {
         _initializationStatus = 'Verificando datos...';
       });
-      print('AppInitializer: Verificando datos de migración...');
 
       // Verificar si hay datos para migrar
       final migrationViewModel = context.read<MigrationViewModel>();
