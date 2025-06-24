@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/category.dart';
 import '../viewmodels/category_viewmodel.dart';
-import '../widgets/mobile_navigation.dart';
-import 'home_screen.dart';
 
 class CategoryManagementScreen extends StatefulWidget {
   const CategoryManagementScreen({super.key});

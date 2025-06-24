@@ -3,7 +3,10 @@ import '../utils/error_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProductService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
+
+  ProductService([FirebaseFirestore? firestore]) 
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   /// Obtener todos los productos
   Future<List<Product>> getProducts() async {
@@ -122,6 +125,7 @@ class ProductService {
       final products = await getProducts();
       final totalProducts = products.length;
       final totalValue = products.fold<double>(0, (sum, product) => sum + (product.price * product.stock));
+      final totalPrice = products.fold<double>(0, (sum, product) => sum + product.price);
       final lowStockProducts = products.where((product) => product.stock <= product.minStock).length;
       final outOfStockProducts = products.where((product) => product.stock == 0).length;
       
@@ -130,7 +134,7 @@ class ProductService {
         'totalValue': totalValue,
         'lowStockProducts': lowStockProducts,
         'outOfStockProducts': outOfStockProducts,
-        'averagePrice': totalProducts > 0 ? totalValue / totalProducts : 0,
+        'averagePrice': totalProducts > 0 ? totalPrice / totalProducts : 0,
       };
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);

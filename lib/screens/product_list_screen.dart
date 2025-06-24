@@ -1,23 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../models/product.dart';
-import '../models/category.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
-import '../utils/error_handler.dart';
-import '../widgets/custom_text_field.dart';
-import '../widgets/custom_button.dart';
-import '../widgets/loading_overlay.dart';
-import '../widgets/mobile_navigation.dart';
-import '../widgets/advanced_search.dart';
-import '../widgets/responsive_grid.dart';
-import '../widgets/error_widgets.dart';
+import '../widgets/custom_snackbar.dart';
 import '../widgets/skeleton_loading.dart';
-import 'home_screen.dart';
-import 'add_product_screen.dart';
-import 'product_detail_screen.dart';
-import 'edit_product_screen.dart';
+import '../utils/error_handler.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -44,7 +32,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
     // Recargar datos cuando las dependencias cambien (por ejemplo, cuando se vuelve a mostrar la pantalla)
     final productViewModel = context.read<ProductViewModel>();
     if (productViewModel.products.isEmpty && !_isLoading) {
-      _loadData();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadData();
+      });
+    } else {
+      // Inicializar _filteredProducts con los productos actuales sin setState
+      _filteredProducts = productViewModel.products;
     }
   }
 
@@ -61,40 +54,43 @@ class _ProductListScreenState extends State<ProductListScreen> {
     });
 
     try {
-      print('🔄 ProductListScreen: Iniciando carga de datos');
-      
       await context.read<ProductViewModel>().loadProducts();
       await context.read<CategoryViewModel>().loadCategories();
       
-      print('🔄 ProductListScreen: Datos cargados, aplicando filtro');
-      _filterProducts(_searchController.text);
-      print('✅ ProductListScreen: Carga completada');
+      if (mounted) {
+        setState(() {
+          _filteredProducts = context.read<ProductViewModel>().products;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      print('❌ ProductListScreen: Error cargando datos: $e');
-      setState(() {
-        _error = AppError.fromException(e);
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = AppError.fromException(e);
+          _isLoading = false;
+        });
+        CustomSnackBar.showError(
+          context: context,
+          message: AppError.fromException(e).message,
+        );
+      }
     }
   }
 
   void _filterProducts(String query) {
     final products = context.read<ProductViewModel>().products;
-    print('🔄 ProductListScreen: Filtrando productos');
-    print('📊 ProductListScreen: Total de productos en ViewModel: ${products.length}');
     
     setState(() {
-      _filteredProducts = products.where((product) {
-        final nameMatch = product.name.toLowerCase().contains(query.toLowerCase());
-        final descriptionMatch = (product.description?.toLowerCase().contains(query.toLowerCase()) ?? false);
-        return nameMatch || descriptionMatch;
-      }).toList();
+      if (query.isEmpty) {
+        _filteredProducts = products;
+      } else {
+        _filteredProducts = products.where((product) {
+          final nameMatch = product.name.toLowerCase().contains(query.toLowerCase());
+          final descriptionMatch = (product.description?.toLowerCase().contains(query.toLowerCase()) ?? false);
+          return nameMatch || descriptionMatch;
+        }).toList();
+      }
     });
-    
-    print('📊 ProductListScreen: Productos filtrados: ${_filteredProducts.length}');
   }
 
   Future<void> _handleMenuAction(String action, Product product) async {
@@ -321,7 +317,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                         vertical: 4,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                        color: Color.fromRGBO(
+                                          Theme.of(context).primaryColor.red,
+                                          Theme.of(context).primaryColor.green,
+                                          Theme.of(context).primaryColor.blue,
+                                          0.1,
+                                        ),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
@@ -340,10 +341,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                       ),
                                       decoration: BoxDecoration(
                                         color: product.stock <= product.minStock
-                                            ? Colors.orange.withOpacity(0.1)
+                                            ? Color.fromRGBO(255, 165, 0, 0.1)
                                             : product.stock <= 0
-                                                ? Colors.red.withOpacity(0.1)
-                                                : Colors.green.withOpacity(0.1),
+                                                ? Color.fromRGBO(255, 0, 0, 0.1)
+                                                : Color.fromRGBO(0, 255, 0, 0.1),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
@@ -545,201 +546,211 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   Widget _buildProductGrid() {
-    if (_isLoading) {
-      return const ProductGridSkeleton(itemCount: 8);
-    }
+    return Consumer<ProductViewModel>(
+      builder: (context, productVM, child) {
+        if (_isLoading || productVM.isLoading) {
+          return const ProductGridSkeleton(itemCount: 8);
+        }
 
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.red[300],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _error!.toString(),
-              style: const TextStyle(fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadData,
-              child: const Text('Reintentar'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_filteredProducts.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.inventory_2_outlined,
-              size: 64,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _searchController.text.isEmpty
-                  ? 'No hay productos registrados'
-                  : 'No se encontraron productos',
-              style: const TextStyle(fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-            if (_searchController.text.isEmpty) ...[
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final result = await Navigator.pushNamed(context, '/add-product');
-                  // Si se creó un producto exitosamente, recargar los datos
-                  if (result == true) {
-                    _loadData();
-                  }
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('Agregar Producto'),
-              ),
-            ],
-          ],
-        ),
-      );
-    }
-
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 1.5,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: _filteredProducts.length,
-      itemBuilder: (context, index) {
-        final product = _filteredProducts[index];
-        return Card(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+        if (_error != null || productVM.error != null) {
+          final error = _error ?? productVM.error;
+          return Center(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Row(
+                Icon(
+                  Icons.error_outline,
+                  size: 64,
+                  color: Colors.red[300],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  error?.toString() ?? 'Error desconocido',
+                  style: const TextStyle(fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _loadData,
+                  child: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (_filteredProducts.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.inventory_2_outlined,
+                  size: 64,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _searchController.text.isEmpty
+                      ? 'No hay productos registrados'
+                      : 'No se encontraron productos',
+                  style: const TextStyle(fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+                if (_searchController.text.isEmpty) ...[
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.pushNamed(context, '/add-product');
+                      // Si se creó un producto exitosamente, recargar los datos
+                      if (result == true) {
+                        _loadData();
+                      }
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Agregar Producto'),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }
+
+        return GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 1.5,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+          ),
+          itemCount: _filteredProducts.length,
+          itemBuilder: (context, index) {
+            final product = _filteredProducts[index];
+            return Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        product.name,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            product.name,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert),
+                          onSelected: (value) => _handleMenuAction(value, product),
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: 'view',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.visibility, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Ver'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.edit, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Editar'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.delete, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Eliminar'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert),
-                      onSelected: (value) => _handleMenuAction(value, product),
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'view',
-                          child: Row(
-                            children: [
-                              Icon(Icons.visibility, size: 20),
-                              SizedBox(width: 8),
-                              Text('Ver'),
-                            ],
+                    const SizedBox(height: 8),
+                    Text(
+                      product.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    const Spacer(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Color.fromRGBO(
+                              Theme.of(context).primaryColor.red,
+                              Theme.of(context).primaryColor.green,
+                              Theme.of(context).primaryColor.blue,
+                              0.1,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '\$${product.price.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: Theme.of(context).primaryColor,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Row(
-                            children: [
-                              Icon(Icons.edit, size: 20),
-                              SizedBox(width: 8),
-                              Text('Editar'),
-                            ],
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
                           ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              Icon(Icons.delete, size: 20),
-                              SizedBox(width: 8),
-                              Text('Eliminar'),
-                            ],
+                          decoration: BoxDecoration(
+                            color: product.stock <= product.minStock
+                                ? Color.fromRGBO(255, 165, 0, 0.1)
+                                : product.stock <= 0
+                                    ? Color.fromRGBO(255, 0, 0, 0.1)
+                                    : Color.fromRGBO(0, 255, 0, 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Stock: ${product.stock}',
+                            style: TextStyle(
+                              color: product.stock <= product.minStock
+                                  ? Colors.orange
+                                  : product.stock <= 0
+                                      ? Colors.red
+                                      : Colors.green,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  product.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                const Spacer(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '\$${product.price.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          color: Theme.of(context).primaryColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: product.stock <= product.minStock
-                            ? Colors.orange.withOpacity(0.1)
-                            : product.stock <= 0
-                                ? Colors.red.withOpacity(0.1)
-                                : Colors.green.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'Stock: ${product.stock}',
-                        style: TextStyle(
-                          color: product.stock <= product.minStock
-                              ? Colors.orange
-                              : product.stock <= 0
-                                  ? Colors.red
-                                  : Colors.green,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );

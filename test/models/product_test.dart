@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stock/models/product.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() {
   group('Product Model Tests', () {
     test('Product.fromMap should create Product from map', () {
       // Arrange
+      final now = DateTime.now();
       final map = {
         'name': 'Test Product',
         'description': 'Test Description',
@@ -14,8 +14,8 @@ void main() {
         'categoryId': 'category-id',
         'minStock': 2,
         'maxStock': 10,
-        'createdAt': Timestamp.fromDate(DateTime.now()),
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
+        'createdAt': now.toIso8601String(),
+        'updatedAt': now.toIso8601String(),
       };
 
       // Act
@@ -34,6 +34,7 @@ void main() {
 
     test('Product.toMap should convert Product to map', () {
       // Arrange
+      final now = DateTime.now();
       final product = Product(
         id: 'test-id',
         name: 'Test Product',
@@ -43,8 +44,8 @@ void main() {
         categoryId: 'category-id',
         minStock: 2,
         maxStock: 10,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        createdAt: now,
+        updatedAt: now,
       );
 
       // Act
@@ -58,10 +59,13 @@ void main() {
       expect(map['categoryId'], 'category-id');
       expect(map['minStock'], 2);
       expect(map['maxStock'], 10);
+      expect(map['createdAt'], now.toIso8601String());
+      expect(map['updatedAt'], now.toIso8601String());
     });
 
     test('Product.copyWith should create new Product with updated fields', () {
       // Arrange
+      final now = DateTime.now();
       final product = Product(
         id: 'test-id',
         name: 'Test Product',
@@ -71,8 +75,8 @@ void main() {
         categoryId: 'category-id',
         minStock: 2,
         maxStock: 10,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        createdAt: now,
+        updatedAt: now,
       );
 
       // Act
@@ -90,6 +94,64 @@ void main() {
       expect(updatedProduct.categoryId, 'category-id');
       expect(updatedProduct.minStock, 2);
       expect(updatedProduct.maxStock, 10);
+      expect(updatedProduct.createdAt, now);
+      expect(updatedProduct.updatedAt, now);
+    });
+
+    test('Product should handle optional fields correctly', () {
+      // Arrange
+      final now = DateTime.now();
+      final product = Product(
+        id: 'test-id',
+        name: 'Test Product',
+        description: 'Test Description',
+        price: 10.0,
+        stock: 5,
+        categoryId: 'category-id',
+        minStock: 2,
+        maxStock: 10,
+        createdAt: now,
+        updatedAt: now,
+        imageUrl: 'https://example.com/image.jpg',
+        barcode: '123456789',
+        sku: 'SKU123',
+        attributes: {'color': 'red', 'size': 'large'},
+      );
+
+      // Act
+      final map = product.toMap();
+
+      // Assert
+      expect(map['imageUrl'], 'https://example.com/image.jpg');
+      expect(map['barcode'], '123456789');
+      expect(map['sku'], 'SKU123');
+      expect(map['attributes'], {'color': 'red', 'size': 'large'});
+    });
+
+    test('Product should handle null optional fields', () {
+      // Arrange
+      final now = DateTime.now();
+      final product = Product(
+        id: 'test-id',
+        name: 'Test Product',
+        description: 'Test Description',
+        price: 10.0,
+        stock: 5,
+        categoryId: 'category-id',
+        minStock: 2,
+        maxStock: 10,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      // Act
+      final map = product.toMap();
+
+      // Assert
+      expect(map['imageUrl'], isNull);
+      expect(map['barcode'], isNull);
+      expect(map['sku'], isNull);
+      expect(map['attributes'], isNull);
     });
   });
 } 

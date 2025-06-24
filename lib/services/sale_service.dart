@@ -3,7 +3,10 @@ import '../utils/error_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SaleService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
+
+  SaleService([FirebaseFirestore? firestore]) 
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   /// Obtener todas las ventas
   Future<List<Sale>> getSales() async {

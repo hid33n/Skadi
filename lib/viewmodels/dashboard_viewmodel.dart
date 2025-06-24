@@ -1,18 +1,18 @@
 import 'package:flutter/foundation.dart' as foundation;
 import '../models/dashboard_data.dart';
-import '../services/firestore_service.dart';
+import '../services/hybrid_data_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
 class DashboardViewModel extends foundation.ChangeNotifier {
-  final FirestoreService _firestoreService;
+  final HybridDataService _dataService;
   final AuthService _authService;
   
   DashboardData? _dashboardData;
   bool _isLoading = false;
   String? _error;
 
-  DashboardViewModel(this._firestoreService, this._authService);
+  DashboardViewModel(this._dataService, this._authService);
 
   DashboardData? get dashboardData => _dashboardData;
   bool get isLoading => _isLoading;
@@ -26,17 +26,14 @@ class DashboardViewModel extends foundation.ChangeNotifier {
 
       print('🔄 Cargando datos del dashboard');
       
-      // Cargar todos los datos necesarios
-      final products = await _firestoreService.getProducts();
-      final sales = await _firestoreService.getSales();
-      final movements = await _firestoreService.getMovements();
-      final categories = await _firestoreService.getCategories();
+      // Usar el método getDashboardData del servicio híbrido
+      final dashboardMap = await _dataService.getDashboardData();
       
-      // Calcular estadísticas
-      final totalProducts = products.length;
-      final totalSales = sales.length;
-      final totalRevenue = sales.fold<double>(0, (sum, sale) => sum + sale.amount);
-      final totalCategories = categories.length;
+      // Cargar datos adicionales para el DashboardData
+      final products = await _dataService.getAllProducts();
+      final sales = await _dataService.getAllSales();
+      final categories = await _dataService.getAllCategories();
+      final movements = await _dataService.getAllMovements();
       
       // Calcular movimientos recientes (última semana)
       final now = DateTime.now();
@@ -46,10 +43,10 @@ class DashboardViewModel extends foundation.ChangeNotifier {
       ).toList();
       
       _dashboardData = DashboardData(
-        totalProducts: totalProducts,
-        totalSales: totalSales,
-        totalRevenue: totalRevenue,
-        totalCategories: totalCategories,
+        totalProducts: dashboardMap['totalProducts'] ?? products.length,
+        totalSales: dashboardMap['totalSales'] ?? sales.length,
+        totalRevenue: (dashboardMap['monthSales'] ?? 0.0).toDouble(),
+        totalCategories: categories.length,
         recentMovements: recentMovements,
         products: products,
         sales: sales,
@@ -57,9 +54,9 @@ class DashboardViewModel extends foundation.ChangeNotifier {
       );
       
       print('✅ Dashboard data cargado exitosamente');
-      print('  - Productos: $totalProducts');
-      print('  - Ventas: $totalSales');
-      print('  - Ingresos: \$${totalRevenue.toStringAsFixed(2)}');
+      print('  - Productos: ${_dashboardData!.totalProducts}');
+      print('  - Ventas: ${_dashboardData!.totalSales}');
+      print('  - Ingresos: \$${_dashboardData!.totalRevenue.toStringAsFixed(2)}');
       print('  - Movimientos: ${recentMovements.length}');
       
       _isLoading = false;

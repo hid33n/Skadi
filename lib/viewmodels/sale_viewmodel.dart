@@ -1,12 +1,12 @@
 import 'package:flutter/foundation.dart' as foundation;
 import '../models/sale.dart';
 import '../models/sale_item.dart';
-import '../services/firestore_service.dart';
+import '../services/hybrid_data_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
 class SaleViewModel extends foundation.ChangeNotifier {
-  final FirestoreService _firestoreService;
+  final HybridDataService _dataService;
   final AuthService _authService;
   
   List<Sale> _sales = [];
@@ -15,7 +15,7 @@ class SaleViewModel extends foundation.ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
-  SaleViewModel(this._firestoreService, this._authService);
+  SaleViewModel(this._dataService, this._authService);
 
   List<Sale> get sales => _sales;
   Sale? get selectedSale => _selectedSale;
@@ -31,7 +31,7 @@ class SaleViewModel extends foundation.ChangeNotifier {
 
       print('🔄 Cargando ventas');
       
-      _sales = await _firestoreService.getSales();
+      _sales = await _dataService.getAllSales();
       
       print('📊 Ventas cargadas: ${_sales.length}');
       for (var sale in _sales) {
@@ -69,7 +69,7 @@ class SaleViewModel extends foundation.ChangeNotifier {
     try {
       print('🔄 SaleViewModel: Agregando venta: \$${sale.amount}');
       
-      await _firestoreService.addSale(sale);
+      await _dataService.createSale(sale);
       await loadSales();
       print('✅ SaleViewModel: Venta agregada exitosamente');
       return true;
@@ -84,7 +84,7 @@ class SaleViewModel extends foundation.ChangeNotifier {
     try {
       print('🔄 SaleViewModel: Eliminando venta con ID: $id');
       
-      await _firestoreService.deleteSale(id);
+      await _dataService.deleteSale(id);
       await loadSales();
       print('✅ SaleViewModel: Venta eliminada exitosamente');
       return true;

@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart' as foundation;
 import '../models/movement.dart';
-import '../services/firestore_service.dart';
+import '../services/hybrid_data_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
 class MovementViewModel extends foundation.ChangeNotifier {
-  final FirestoreService _firestoreService;
+  final HybridDataService _dataService;
   final AuthService _authService;
   
   List<Movement> _movements = [];
@@ -14,7 +14,7 @@ class MovementViewModel extends foundation.ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
-  MovementViewModel(this._firestoreService, this._authService);
+  MovementViewModel(this._dataService, this._authService);
 
   List<Movement> get movements => _movements;
   Movement? get selectedMovement => _selectedMovement;
@@ -30,7 +30,7 @@ class MovementViewModel extends foundation.ChangeNotifier {
 
       print('🔄 Cargando movimientos');
       
-      _movements = await _firestoreService.getMovements();
+      _movements = await _dataService.getAllMovements();
       
       print('📊 Movimientos cargados: ${_movements.length}');
       for (var movement in _movements) {
@@ -68,7 +68,7 @@ class MovementViewModel extends foundation.ChangeNotifier {
     try {
       print('🔄 MovementViewModel: Agregando movimiento: ${movement.type}');
       
-      await _firestoreService.addMovement(movement);
+      await _dataService.createMovement(movement);
       await loadMovements();
       print('✅ MovementViewModel: Movimiento agregado exitosamente');
       return true;
@@ -83,7 +83,7 @@ class MovementViewModel extends foundation.ChangeNotifier {
     try {
       print('🔄 MovementViewModel: Eliminando movimiento con ID: $id');
       
-      await _firestoreService.deleteMovement(id);
+      await _dataService.deleteMovement(id);
       await loadMovements();
       print('✅ MovementViewModel: Movimiento eliminado exitosamente');
       return true;
@@ -99,7 +99,6 @@ class MovementViewModel extends foundation.ChangeNotifier {
     
     return _movements.where((movement) {
       return movement.id.toLowerCase().contains(query.toLowerCase()) ||
-             movement.productName.toLowerCase().contains(query.toLowerCase()) ||
              movement.type.toString().toLowerCase().contains(query.toLowerCase()) ||
              (movement.note?.toLowerCase().contains(query.toLowerCase()) ?? false);
     }).toList();

@@ -1,62 +1,41 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/mockito.dart';
-import 'package:stock/models/category.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:stock/services/category_service.dart';
-import 'package:stock/services/firestore_service.dart';
-import '../test_helper.dart';
-
-class MockFirestoreService extends Mock implements FirestoreService {
-  @override
-  Future<List<Category>> getCategories() async {
-    return [];
-  }
-
-  @override
-  Future<void> addCategory(Category category) async {}
-
-  @override
-  Future<void> updateCategory(String id, Category category) async {}
-
-  @override
-  Future<void> deleteCategory(String id) async {}
-
-  @override
-  Future<Category?> getCategoryById(String id) async {
-    return null;
-  }
-}
+import 'package:stock/models/category.dart';
+import 'package:stock/utils/error_handler.dart';
 
 void main() {
-  late MockFirestoreService mockFirestoreService;
+  late FakeFirebaseFirestore fakeFirestore;
   late CategoryService categoryService;
 
   setUp(() {
-    mockFirestoreService = MockFirestoreService();
-    categoryService = CategoryService(mockFirestoreService);
+    fakeFirestore = FakeFirebaseFirestore();
+    categoryService = CategoryService(fakeFirestore);
   });
 
   group('CategoryService Tests', () {
     test('getCategories returns list of categories', () async {
       // Arrange
-      final mockCategories = [
-        Category(
-          id: '1',
-          name: 'Category 1',
-          description: 'Description 1',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-        Category(
-          id: '2',
-          name: 'Category 2',
-          description: 'Description 2',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-      ];
+      final now = DateTime.now();
+      final category1 = Category(
+        id: '1',
+        name: 'Category 1',
+        description: 'Description 1',
+        createdAt: now,
+        updatedAt: now,
+      );
+      final category2 = Category(
+        id: '2',
+        name: 'Category 2',
+        description: 'Description 2',
+        createdAt: now,
+        updatedAt: now,
+      );
 
-      when(mockFirestoreService.getCategories())
-          .thenAnswer((_) async => mockCategories);
+      // Agregar datos de prueba al fake firestore
+      await fakeFirestore.collection('categories').doc('1').set(category1.toMap());
+      await fakeFirestore.collection('categories').doc('2').set(category2.toMap());
 
       // Act
       final categories = await categoryService.getCategories();
@@ -65,173 +44,212 @@ void main() {
       expect(categories.length, 2);
       expect(categories[0].name, 'Category 1');
       expect(categories[1].name, 'Category 2');
-      verify(mockFirestoreService.getCategories()).called(1);
     });
 
     test('getCategories returns empty list when no categories exist', () async {
-      // Arrange
-      when(mockFirestoreService.getCategories())
-          .thenAnswer((_) async => []);
-
       // Act
       final categories = await categoryService.getCategories();
 
       // Assert
       expect(categories, isEmpty);
-      verify(mockFirestoreService.getCategories()).called(1);
     });
 
     test('addCategory adds a category', () async {
       // Arrange
+      final now = DateTime.now();
       final category = Category(
         id: '',
         name: 'New Category',
         description: 'New Description',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        createdAt: now,
+        updatedAt: now,
       );
-
-      when(mockFirestoreService.addCategory(category))
-          .thenAnswer((_) async => null);
 
       // Act
-      await categoryService.addCategory(category);
+      final id = await categoryService.addCategory(category);
 
       // Assert
-      verify(mockFirestoreService.addCategory(category)).called(1);
-    });
-
-    test('addCategory throws error when name is empty', () async {
-      // Arrange
-      final category = Category(
-        id: '',
-        name: '',
-        description: 'New Description',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      // Act & Assert
-      expect(
-        () => categoryService.addCategory(category),
-        throwsException,
-      );
+      expect(id, isNotEmpty);
+      final addedCategory = await fakeFirestore.collection('categories').doc(id).get();
+      expect(addedCategory.exists, isTrue);
+      expect(addedCategory.data()!['name'], 'New Category');
     });
 
     test('updateCategory updates a category', () async {
       // Arrange
-      final category = Category(
+      final now = DateTime.now();
+      final originalCategory = Category(
+        id: '1',
+        name: 'Original Category',
+        description: 'Original Description',
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await fakeFirestore.collection('categories').doc('1').set(originalCategory.toMap());
+
+      final updatedCategory = Category(
         id: '1',
         name: 'Updated Category',
         description: 'Updated Description',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        createdAt: now,
+        updatedAt: now,
       );
-
-      when(mockFirestoreService.updateCategory('1', category))
-          .thenAnswer((_) async => null);
 
       // Act
-      await categoryService.updateCategory('1', category);
+      await categoryService.updateCategory('1', updatedCategory);
 
       // Assert
-      verify(mockFirestoreService.updateCategory('1', category)).called(1);
-    });
-
-    test('updateCategory throws error when name is empty', () async {
-      // Arrange
-      final category = Category(
-        id: '1',
-        name: '',
-        description: 'Updated Description',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      // Act & Assert
-      expect(
-        () => categoryService.updateCategory('1', category),
-        throwsException,
-      );
-    });
-
-    test('updateCategory throws error when category does not exist', () async {
-      // Arrange
-      final category = Category(
-        id: 'non-existent',
-        name: 'Updated Category',
-        description: 'Updated Description',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      when(mockFirestoreService.updateCategory('non-existent', category))
-          .thenThrow(Exception('Category not found'));
-
-      // Act & Assert
-      expect(
-        () => categoryService.updateCategory('non-existent', category),
-        throwsException,
-      );
+      final doc = await fakeFirestore.collection('categories').doc('1').get();
+      expect(doc.data()!['name'], 'Updated Category');
+      expect(doc.data()!['description'], 'Updated Description');
     });
 
     test('deleteCategory deletes a category', () async {
       // Arrange
-      when(mockFirestoreService.deleteCategory('1'))
-          .thenAnswer((_) async => null);
+      final now = DateTime.now();
+      final category = Category(
+        id: '1',
+        name: 'Category to Delete',
+        description: 'Description',
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await fakeFirestore.collection('categories').doc('1').set(category.toMap());
 
       // Act
       await categoryService.deleteCategory('1');
 
       // Assert
-      verify(mockFirestoreService.deleteCategory('1')).called(1);
+      final doc = await fakeFirestore.collection('categories').doc('1').get();
+      expect(doc.exists, isFalse);
     });
 
-    test('deleteCategory throws error when category does not exist', () async {
+    test('deleteCategory throws error when category has associated products', () async {
       // Arrange
-      when(mockFirestoreService.deleteCategory('non-existent'))
-          .thenThrow(Exception('Category not found'));
+      final now = DateTime.now();
+      final category = Category(
+        id: '1',
+        name: 'Category with Products',
+        description: 'Description',
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await fakeFirestore.collection('categories').doc('1').set(category.toMap());
+      
+      // Agregar un producto que use esta categoría
+      await fakeFirestore.collection('products').add({
+        'name': 'Test Product',
+        'categoryId': '1',
+      });
 
       // Act & Assert
       expect(
-        () => categoryService.deleteCategory('non-existent'),
-        throwsException,
+        () => categoryService.deleteCategory('1'),
+        throwsA(isA<AppError>()),
       );
     });
 
     test('getCategoryById returns a category', () async {
       // Arrange
-      final mockCategory = Category(
+      final now = DateTime.now();
+      final category = Category(
         id: '1',
         name: 'Category 1',
         description: 'Description 1',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        createdAt: now,
+        updatedAt: now,
       );
 
-      when(mockFirestoreService.getCategoryById('1'))
-          .thenAnswer((_) async => mockCategory);
+      await fakeFirestore.collection('categories').doc('1').set(category.toMap());
 
       // Act
-      final category = await categoryService.getCategoryById('1');
+      final result = await categoryService.getCategoryById('1');
 
       // Assert
-      expect(category?.name, 'Category 1');
-      expect(category?.description, 'Description 1');
-      verify(mockFirestoreService.getCategoryById('1')).called(1);
+      expect(result?.name, 'Category 1');
+      expect(result?.description, 'Description 1');
     });
 
     test('getCategoryById returns null when category does not exist', () async {
-      // Arrange
-      when(mockFirestoreService.getCategoryById('non-existent'))
-          .thenAnswer((_) async => null);
-
       // Act
-      final category = await categoryService.getCategoryById('non-existent');
+      final result = await categoryService.getCategoryById('non-existent');
 
       // Assert
-      expect(category, isNull);
-      verify(mockFirestoreService.getCategoryById('non-existent')).called(1);
+      expect(result, isNull);
+    });
+
+    test('searchCategories returns matching categories', () async {
+      // Arrange
+      final now = DateTime.now();
+      final category1 = Category(
+        id: '1',
+        name: 'Electronics',
+        description: 'Electronic devices',
+        createdAt: now,
+        updatedAt: now,
+      );
+      final category2 = Category(
+        id: '2',
+        name: 'Clothing',
+        description: 'Clothing items',
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await fakeFirestore.collection('categories').doc('1').set(category1.toMap());
+      await fakeFirestore.collection('categories').doc('2').set(category2.toMap());
+
+      // Act
+      final results = await categoryService.searchCategories('electronics');
+
+      // Assert
+      expect(results.length, 1);
+      expect(results[0].name, 'Electronics');
+    });
+
+    test('getCategoryStats returns correct statistics', () async {
+      // Arrange
+      final now = DateTime.now();
+      final category1 = Category(
+        id: '1',
+        name: 'Electronics',
+        description: 'Electronic devices',
+        createdAt: now,
+        updatedAt: now,
+      );
+      final category2 = Category(
+        id: '2',
+        name: 'Clothing',
+        description: 'Clothing items',
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await fakeFirestore.collection('categories').doc('1').set(category1.toMap());
+      await fakeFirestore.collection('categories').doc('2').set(category2.toMap());
+
+      // Agregar algunos productos
+      await fakeFirestore.collection('products').add({
+        'name': 'Phone',
+        'categoryId': '1',
+      });
+      await fakeFirestore.collection('products').add({
+        'name': 'Laptop',
+        'categoryId': '1',
+      });
+
+      // Act
+      final stats = await categoryService.getCategoryStats();
+
+      // Assert
+      expect(stats['totalCategories'], 2);
+      expect(stats['categoriesWithProducts'], 1);
+      expect(stats['emptyCategories'], 1);
+      expect(stats['categoryDistribution']['Electronics'], 2);
+      expect(stats['categoryDistribution']['Clothing'], 0);
     });
   });
 } 

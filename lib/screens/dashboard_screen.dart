@@ -5,7 +5,6 @@ import '../widgets/dashboard/dashboard_grid.dart';
 import '../widgets/sync_status_widget.dart';
 import '../theme/responsive.dart';
 import '../services/auth_service.dart';
-import '../services/sync_service.dart';
 import '../utils/error_handler.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -22,39 +21,16 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final _authService = AuthService();
-  final _syncService = SyncService();
 
   @override
   void initState() {
     super.initState();
-    _initializeSyncService();
     _loadDashboardData();
-  }
-
-  Future<void> _initializeSyncService() async {
-    try {
-      await _syncService.initialize();
-    } catch (e) {
-      if (mounted) {
-        context.showError('Error al inicializar sincronización: $e');
-      }
-    }
   }
 
   Future<void> _loadDashboardData() async {
     final dashboardViewModel = context.read<DashboardViewModel>();
-    print('🔄 Iniciando carga de datos del dashboard...');
     await dashboardViewModel.loadDashboardData();
-    print('✅ Carga de datos del dashboard completada');
-    print('📊 Estado del dashboard:');
-    print('  - isLoading: ${dashboardViewModel.isLoading}');
-    print('  - error: ${dashboardViewModel.error}');
-    print('  - dashboardData: ${dashboardViewModel.dashboardData != null ? "disponible" : "null"}');
-    if (dashboardViewModel.dashboardData != null) {
-      print('  - totalProducts: ${dashboardViewModel.dashboardData!.totalProducts}');
-      print('  - totalSales: ${dashboardViewModel.dashboardData!.totalSales}');
-      print('  - totalRevenue: ${dashboardViewModel.dashboardData!.totalRevenue}');
-    }
   }
 
   Future<void> _signOut() async {
@@ -80,20 +56,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           children: [
             // Widget de estado offline
-            SyncOfflineIndicator(syncService: _syncService),
+            const SyncOfflineIndicator(),
             
             // Widget de progreso de sincronización
-            SyncProgressWidget(syncService: _syncService),
+            const SyncProgressWidget(),
             
             Consumer<DashboardViewModel>(
               builder: (context, viewModel, _) {
-                print('🎨 Construyendo dashboard UI...');
-                print('  - isLoading: ${viewModel.isLoading}');
-                print('  - error: ${viewModel.error}');
-                print('  - dashboardData: ${viewModel.dashboardData != null ? "disponible" : "null"}');
-                
                 if (viewModel.isLoading) {
-                  print('⏳ Mostrando loading...');
                   return const Center(
                     child: Padding(
                       padding: EdgeInsets.all(16.0),
@@ -103,7 +73,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 }
 
                 if (viewModel.error != null) {
-                  print('❌ Mostrando error: ${viewModel.error}');
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -132,7 +101,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   );
                 }
 
-                print('✅ Mostrando DashboardGrid...');
                 return const DashboardGrid();
               },
             ),
@@ -147,9 +115,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               title: const Text('Dashboard'),
               actions: [
                 // Widget de estado de sincronización en el AppBar
-                Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: SyncStatusWidget(syncService: _syncService),
+                const Padding(
+                  padding: EdgeInsets.only(right: 8.0),
+                  child: SyncStatusWidget(),
                 ),
                 IconButton(
                   icon: const Icon(Icons.logout),

@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart' as foundation;
 import '../models/category.dart';
-import '../services/firestore_service.dart';
+import '../services/hybrid_data_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
 class CategoryViewModel extends foundation.ChangeNotifier {
-  final FirestoreService _firestoreService;
+  final HybridDataService _dataService;
   final AuthService _authService;
   
   List<Category> _categories = [];
@@ -14,7 +14,7 @@ class CategoryViewModel extends foundation.ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
-  CategoryViewModel(this._firestoreService, this._authService);
+  CategoryViewModel(this._dataService, this._authService);
 
   List<Category> get categories => _categories;
   Category? get selectedCategory => _selectedCategory;
@@ -30,7 +30,7 @@ class CategoryViewModel extends foundation.ChangeNotifier {
 
       print('🔄 Cargando categorías');
       
-      _categories = await _firestoreService.getCategories();
+      _categories = await _dataService.getAllCategories();
       
       print('📊 Categorías cargadas: ${_categories.length}');
       for (var category in _categories) {
@@ -53,7 +53,7 @@ class CategoryViewModel extends foundation.ChangeNotifier {
       _error = null;
       notifyListeners();
 
-      _selectedCategory = await _firestoreService.getCategoryById(categoryId);
+      _selectedCategory = _categories.firstWhere((c) => c.id == categoryId);
       
       if (_selectedCategory == null) {
         _error = 'Categoría no encontrada';
@@ -72,7 +72,7 @@ class CategoryViewModel extends foundation.ChangeNotifier {
     try {
       print('🔄 CategoryViewModel: Agregando categoría: ${category.name}');
       
-      await _firestoreService.addCategory(category);
+      await _dataService.createCategory(category);
       await loadCategories();
       print('✅ CategoryViewModel: Categoría agregada exitosamente');
       return true;
@@ -87,7 +87,7 @@ class CategoryViewModel extends foundation.ChangeNotifier {
     try {
       print('🔄 CategoryViewModel: Actualizando categoría: ${category.name}');
       
-      await _firestoreService.updateCategory(category.id, category);
+      await _dataService.updateCategory(category);
       await loadCategories();
       print('✅ CategoryViewModel: Categoría actualizada exitosamente');
       return true;
@@ -102,7 +102,7 @@ class CategoryViewModel extends foundation.ChangeNotifier {
     try {
       print('🔄 CategoryViewModel: Eliminando categoría con ID: $id');
       
-      await _firestoreService.deleteCategory(id);
+      await _dataService.deleteCategory(id);
       await loadCategories();
       print('✅ CategoryViewModel: Categoría eliminada exitosamente');
       return true;

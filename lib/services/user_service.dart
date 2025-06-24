@@ -3,7 +3,10 @@ import '../models/user_profile.dart';
 import '../utils/error_handler.dart';
 
 class UserService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
+
+  UserService([FirebaseFirestore? firestore]) 
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   /// Crear un nuevo usuario
   Future<String> createUser(UserProfile user) async {

@@ -6,10 +6,11 @@ import '../models/movement.dart';
 import 'auth_service.dart';
 
 class FirestoreService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
   final AuthService _authService;
 
-  FirestoreService(this._authService);
+  FirestoreService(this._authService, [FirebaseFirestore? firestore]) 
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   String get _userId => _authService.currentUser?.uid ?? '';
 

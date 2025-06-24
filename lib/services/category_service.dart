@@ -3,7 +3,10 @@ import '../utils/error_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CategoryService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
+
+  CategoryService([FirebaseFirestore? firestore]) 
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   /// Obtener todas las categorías
   Future<List<Category>> getCategories() async {

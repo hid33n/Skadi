@@ -5,7 +5,6 @@ import '../../widgets/responsive_layout.dart';
 import 'dashboard_card.dart';
 import 'sales_chart.dart';
 import 'category_distribution.dart';
-import 'stock_trends.dart';
 import 'quick_actions.dart';
 import 'recent_activity.dart';
 import 'stock_status.dart';

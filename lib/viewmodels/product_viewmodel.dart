@@ -1,18 +1,18 @@
 import 'package:flutter/foundation.dart';
 import '../models/product.dart';
-import '../services/firestore_service.dart';
+import '../services/hybrid_data_service.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
 class ProductViewModel extends ChangeNotifier {
-  final FirestoreService _firestoreService;
+  final HybridDataService _dataService;
   final AuthService _authService;
   
   List<Product> _products = [];
   bool _isLoading = false;
   String? _error;
 
-  ProductViewModel(this._firestoreService, this._authService);
+  ProductViewModel(this._dataService, this._authService);
 
   List<Product> get products => _products;
   bool get isLoading => _isLoading;
@@ -26,7 +26,7 @@ class ProductViewModel extends ChangeNotifier {
 
       print('🔄 ProductViewModel: Cargando productos');
       
-      _products = await _firestoreService.getProducts();
+      _products = await _dataService.getAllProducts();
       
       print('📊 ProductViewModel: Productos cargados: ${_products.length}');
       for (var product in _products) {
@@ -46,7 +46,7 @@ class ProductViewModel extends ChangeNotifier {
     try {
       print('🔄 ProductViewModel: Agregando producto: ${product.name}');
       
-      await _firestoreService.addProduct(product);
+      await _dataService.createProduct(product);
       await loadProducts();
       print('✅ ProductViewModel: Producto agregado exitosamente');
       return true;
@@ -61,7 +61,7 @@ class ProductViewModel extends ChangeNotifier {
     try {
       print('🔄 ProductViewModel: Actualizando producto: ${product.name}');
       
-      await _firestoreService.updateProduct(product.id, product);
+      await _dataService.updateProduct(product);
       await loadProducts();
       print('✅ ProductViewModel: Producto actualizado exitosamente');
       return true;
@@ -76,7 +76,7 @@ class ProductViewModel extends ChangeNotifier {
     try {
       print('🔄 ProductViewModel: Eliminando producto con ID: $id');
       
-      await _firestoreService.deleteProduct(id);
+      await _dataService.deleteProduct(id);
       await loadProducts();
       print('✅ ProductViewModel: Producto eliminado exitosamente');
       return true;
@@ -113,29 +113,50 @@ class ProductViewModel extends ChangeNotifier {
     }
   }
 
-  List<Product> searchProducts(String query) {
-    if (query.isEmpty) return _products;
-    
-    return _products.where((product) {
-      return product.name.toLowerCase().contains(query.toLowerCase()) ||
-             product.description.toLowerCase().contains(query.toLowerCase()) ||
-             (product.sku?.toLowerCase().contains(query.toLowerCase()) ?? false) ||
-             (product.barcode?.toLowerCase().contains(query.toLowerCase()) ?? false);
-    }).toList();
+  Future<List<Product>> searchProducts(String query) async {
+    try {
+      if (query.isEmpty) return _products;
+      
+      // Usar el método de búsqueda del servicio híbrido
+      final results = await _dataService.searchProducts(query);
+      return results;
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
+      notifyListeners();
+      return [];
+    }
   }
 
-  List<Product> getLowStockProducts() {
-    return _products.where((product) => product.stock <= product.minStock).toList();
+  Future<List<Product>> getLowStockProducts() async {
+    try {
+      return await _dataService.getLowStockProducts();
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
+      notifyListeners();
+      return [];
+    }
   }
 
   List<Product> getProductsByCategory(String categoryId) {
     return _products.where((product) => product.categoryId == categoryId).toList();
   }
 
-  Product? getProductById(String id) {
+  Future<Product?> getProductById(String id) async {
     try {
-      return _products.firstWhere((product) => product.id == id);
-    } catch (e) {
+      return await _dataService.getProductById(id);
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<Product?> getProductByBarcode(String barcode) async {
+    try {
+      return await _dataService.getProductByBarcode(barcode);
+    } catch (e, stackTrace) {
+      _error = AppError.fromException(e, stackTrace).message;
+      notifyListeners();
       return null;
     }
   }

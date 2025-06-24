@@ -3,7 +3,10 @@ import '../utils/error_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MovementService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
+
+  MovementService([FirebaseFirestore? firestore]) 
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   /// Obtener todos los movimientos
   Future<List<Movement>> getMovements() async {

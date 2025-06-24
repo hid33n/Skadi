@@ -48,7 +48,7 @@ class DashboardCard extends StatelessWidget {
                           Container(
                             margin: const EdgeInsets.only(right: 8),
                             decoration: BoxDecoration(
-                              color: (iconColor ?? Theme.of(context).primaryColor).withOpacity(0.12),
+                              color: (iconColor ?? Theme.of(context).primaryColor).withValues(alpha: 0.12),
                               shape: BoxShape.circle,
                             ),
                             padding: const EdgeInsets.all(6),

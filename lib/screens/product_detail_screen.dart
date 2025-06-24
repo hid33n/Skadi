@@ -6,7 +6,7 @@ import '../models/category.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/movement_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
-import '../services/firestore_service.dart';
+import '../widgets/custom_snackbar.dart';
 import '../utils/error_handler.dart';
 import 'edit_product_screen.dart';
 

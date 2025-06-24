@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../theme/responsive.dart';
-import '../viewmodels/auth_viewmodel.dart';
+import '../viewmodels/sync_viewmodel.dart';
+import '../widgets/sync_status_widget.dart';
 import 'dashboard_screen.dart';
 import 'product_list_screen.dart';
 import 'category_management_screen.dart';
 import 'movement_history_screen.dart';
 import 'sales_screen.dart';
-import 'add_sale_screen.dart';
-import '../services/sync_service.dart';
 import '../widgets/custom_snackbar.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -23,7 +23,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _selectedIndex = 0;
   final _authService = AuthService();
   String _username = '';
-  final SyncService _syncService = SyncService();
   bool _isDrawerOpen = false;
   bool _isHovering = false;
   late AnimationController _drawerAnimationController;
@@ -69,7 +68,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _loadUserProfile();
-    _syncService.initialize();
     
     _drawerAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),
@@ -106,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         });
       }
     } catch (e) {
-      print('Error loading user profile: $e');
+      // Error loading user profile
     }
   }
 
@@ -144,6 +142,78 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
+  void _handleSettingsMenu(BuildContext context, String value) {
+    switch (value) {
+      case 'migration':
+        Navigator.pushNamed(context, '/migration');
+        break;
+      case 'force_sync':
+        _forceSync(context);
+        break;
+      case 'app_info':
+        _showAppInfo(context);
+        break;
+    }
+  }
+
+  void _forceSync(BuildContext context) async {
+    final syncViewModel = context.read<SyncViewModel>();
+    
+    try {
+      await syncViewModel.forceSync();
+      if (context.mounted) {
+        CustomSnackBar.showInfo(
+          context: context,
+          message: 'Sincronización completada',
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        CustomSnackBar.showError(
+          context: context,
+          message: 'Error en sincronización: $e',
+        );
+      }
+    }
+  }
+
+  void _showAppInfo(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Stockcito - Planeta Motos'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Versión: 1.0.0'),
+            const SizedBox(height: 8),
+            const Text('Sistema de Gestión de Inventario'),
+            const SizedBox(height: 16),
+            const Text(
+              'Funcionalidades:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text('• Funcionamiento offline con Hive'),
+            const Text('• Sincronización automática'),
+            const Text('• Múltiples dispositivos'),
+            const Text('• APIs gratuitas'),
+            const Text('• Gestión de productos'),
+            const Text('• Control de stock'),
+            const Text('• Reportes y análisis'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   PreferredSizeWidget _buildAppBar() {
     final theme = Theme.of(context);
     final isMobile = Responsive.isMobile(context);
@@ -173,35 +243,86 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ],
       ),
       actions: [
-        // Online Indicator
-        Container(
-          margin: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: Colors.green,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
+        // Widget de sincronización
+        Consumer<SyncViewModel>(
+          builder: (context, syncViewModel, child) {
+            return SyncStatusWidget(
+              showDetails: false,
+              onTap: () {
+                // Mostrar detalles de sincronización
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Estado de Sincronización'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Estado: ${syncViewModel.getSyncStatusText()}'),
+                        const SizedBox(height: 8),
+                        if (syncViewModel.pendingChangesCount > 0)
+                          Text('Pendientes: ${syncViewModel.pendingChangesCount} cambios'),
+                        const SizedBox(height: 8),
+                        Text('Recomendación: ${syncViewModel.getSyncRecommendations()}'),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cerrar'),
+                      ),
+                      if (syncViewModel.pendingChangesCount > 0)
+                        ElevatedButton(
+                          onPressed: () {
+                            syncViewModel.forceSync();
+                            Navigator.pop(context);
+                          },
+                          child: const Text('Sincronizar'),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        ),
+        
+        // Menú de configuración
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.settings, color: Colors.white),
+          onSelected: (value) => _handleSettingsMenu(context, value),
+          itemBuilder: (context) => [
+            PopupMenuItem<String>(
+              value: 'migration',
+              child: Row(
+                children: [
+                  const Icon(Icons.swap_horiz),
+                  const SizedBox(width: 8),
+                  const Text('Migración de Datos'),
+                ],
               ),
-              const SizedBox(width: 6),
-              Text(
-                'Online',
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
+            ),
+            PopupMenuItem<String>(
+              value: 'force_sync',
+              child: Row(
+                children: [
+                  const Icon(Icons.sync_alt),
+                  const SizedBox(width: 8),
+                  const Text('Sincronizar Ahora'),
+                ],
               ),
-            ],
-          ),
+            ),
+            PopupMenuItem<String>(
+              value: 'app_info',
+              child: Row(
+                children: [
+                  const Icon(Icons.info),
+                  const SizedBox(width: 8),
+                  const Text('Información de la App'),
+                ],
+              ),
+            ),
+          ],
         ),
         if (isMobile)
           IconButton(

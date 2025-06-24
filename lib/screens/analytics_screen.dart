@@ -6,7 +6,6 @@ import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/sale_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
 import '../models/category.dart';
-import '../utils/error_handler.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dashboard_card.dart';
+import 'barcode_quick_action.dart';
+import '../../theme/responsive.dart';
 
 class QuickActions extends StatelessWidget {
   const QuickActions({super.key});
@@ -14,6 +16,11 @@ class QuickActions extends StatelessWidget {
           if (constraints.maxWidth < 600) {
             return Column(
               children: [
+                if (Responsive.isMobile(context))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: BarcodeQuickAction(),
+                  ),
                 _buildActionRow(context, [
                   _buildActionButton(
                     context,
