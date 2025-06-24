@@ -1,153 +1,346 @@
 import 'package:flutter/material.dart';
-import '../services/sync_service.dart';
+import 'package:provider/provider.dart';
+import '../viewmodels/sync_viewmodel.dart';
 
 class SyncStatusWidget extends StatelessWidget {
-  final SyncService syncService;
+  final bool showDetails;
+  final VoidCallback? onTap;
 
   const SyncStatusWidget({
     Key? key,
-    required this.syncService,
+    this.showDetails = false,
+    this.onTap,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<SyncStatus>(
-      stream: syncService.statusStream,
-      builder: (context, snapshot) {
-        final status = snapshot.data ?? SyncStatus.idle;
-        
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: _getStatusColor(status),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildStatusIcon(status),
-              const SizedBox(width: 8),
-              Text(
-                _getStatusText(status),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+    return Consumer<SyncViewModel>(
+      builder: (context, syncViewModel, child) {
+        return GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Color(syncViewModel.getSyncStatusColor()).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Color(syncViewModel.getSyncStatusColor()).withOpacity(0.3),
+                width: 1,
               ),
-              if (status == SyncStatus.syncing) ...[
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  syncViewModel.getSyncStatusIcon(),
+                  style: const TextStyle(fontSize: 16),
+                ),
                 const SizedBox(width: 8),
-                const SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                Flexible(
+                  child: Text(
+                    syncViewModel.getSyncStatusText(),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Color(syncViewModel.getSyncStatusColor()),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (showDetails && syncViewModel.pendingChangesCount > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Color(syncViewModel.getSyncStatusColor()),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      syncViewModel.pendingChangesCount.toString(),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+                if (onTap != null) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 12,
+                    color: Color(syncViewModel.getSyncStatusColor()),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class SyncStatusCard extends StatelessWidget {
+  const SyncStatusCard({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<SyncViewModel>(
+      builder: (context, syncViewModel, child) {
+        return Card(
+          elevation: 2,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      syncViewModel.getSyncStatusIcon(),
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Estado de Sincronización',
+                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            syncViewModel.getSyncStatusText(),
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Color(syncViewModel.getSyncStatusColor()),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (syncViewModel.pendingChangesCount > 0) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.pending_actions,
+                              color: Colors.orange,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Cambios Pendientes',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Colors.orange,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          syncViewModel.getPendingChangesSummary(),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (syncViewModel.lastSyncTime != null) ...[
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.access_time,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Última sincronización: ${_formatDateTime(syncViewModel.lastSyncTime!)}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: syncViewModel.isSyncing
+                            ? null
+                            : () => syncViewModel.forceSync(),
+                        icon: syncViewModel.isSyncing
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.sync),
+                        label: Text(
+                          syncViewModel.isSyncing ? 'Sincronizando...' : 'Sincronizar',
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      ),
+                    ),
+                    if (syncViewModel.pendingChangesCount > 0) ...[
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: () => syncViewModel.clearPendingChanges(),
+                        icon: const Icon(Icons.clear),
+                        label: const Text('Limpiar'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  syncViewModel.getSyncRecommendations(),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                    fontStyle: FontStyle.italic,
                   ),
                 ),
               ],
-            ],
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildStatusIcon(SyncStatus status) {
-    IconData iconData;
-    Color iconColor = Colors.white;
+  String _formatDateTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
 
-    switch (status) {
-      case SyncStatus.idle:
-        iconData = Icons.cloud_done;
-        break;
-      case SyncStatus.syncing:
-        iconData = Icons.sync;
-        break;
-      case SyncStatus.error:
-        iconData = Icons.error;
-        break;
-      case SyncStatus.completed:
-        iconData = Icons.check_circle;
-        break;
-    }
-
-    return Icon(
-      iconData,
-      size: 16,
-      color: iconColor,
-    );
-  }
-
-  Color _getStatusColor(SyncStatus status) {
-    switch (status) {
-      case SyncStatus.idle:
-        return Colors.grey.shade600;
-      case SyncStatus.syncing:
-        return Colors.blue.shade600;
-      case SyncStatus.error:
-        return Colors.red.shade600;
-      case SyncStatus.completed:
-        return Colors.green.shade600;
-    }
-  }
-
-  String _getStatusText(SyncStatus status) {
-    switch (status) {
-      case SyncStatus.idle:
-        return 'Sincronizado';
-      case SyncStatus.syncing:
-        return 'Sincronizando...';
-      case SyncStatus.error:
-        return 'Error de sincronización';
-      case SyncStatus.completed:
-        return 'Sincronización completada';
+    if (difference.inMinutes < 1) {
+      return 'Hace ${difference.inSeconds} segundos';
+    } else if (difference.inHours < 1) {
+      return 'Hace ${difference.inMinutes} minutos';
+    } else if (difference.inDays < 1) {
+      return 'Hace ${difference.inHours} horas';
+    } else {
+      return 'Hace ${difference.inDays} días';
     }
   }
 }
 
-class SyncProgressWidget extends StatelessWidget {
-  final SyncService syncService;
+class SyncStatusIndicator extends StatelessWidget {
+  final double size;
+  final bool showTooltip;
 
-  const SyncProgressWidget({
+  const SyncStatusIndicator({
     Key? key,
-    required this.syncService,
+    this.size = 24,
+    this.showTooltip = true,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<String>(
-      stream: syncService.progressStream,
-      builder: (context, snapshot) {
-        final progress = snapshot.data;
-        
-        if (progress == null || progress.isEmpty) {
+    return Consumer<SyncViewModel>(
+      builder: (context, syncViewModel, child) {
+        Widget indicator = Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: Color(syncViewModel.getSyncStatusColor()),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(
+              syncViewModel.getSyncStatusIcon(),
+              style: TextStyle(fontSize: size * 0.6),
+            ),
+          ),
+        );
+
+        if (showTooltip) {
+          return Tooltip(
+            message: syncViewModel.getSyncStatusText(),
+            child: indicator,
+          );
+        }
+
+        return indicator;
+      },
+    );
+  }
+}
+
+class SyncProgressWidget extends StatelessWidget {
+  const SyncProgressWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<SyncViewModel>(
+      builder: (context, syncViewModel, child) {
+        if (!syncViewModel.isSyncing) {
           return const SizedBox.shrink();
         }
 
         return Container(
-          margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.blue.shade50,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.blue.shade200),
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+            ),
           ),
-          child: Row(
+          child: Column(
             children: [
-              const Icon(
-                Icons.sync,
-                color: Colors.blue,
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  progress,
-                  style: const TextStyle(
-                    color: Colors.blue,
-                    fontSize: 14,
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Sincronizando con Hive y Firebase...',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                backgroundColor: Colors.grey.withOpacity(0.3),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.primary,
                 ),
               ),
             ],
@@ -159,41 +352,39 @@ class SyncProgressWidget extends StatelessWidget {
 }
 
 class SyncOfflineIndicator extends StatelessWidget {
-  final SyncService syncService;
-
-  const SyncOfflineIndicator({
-    Key? key,
-    required this.syncService,
-  }) : super(key: key);
+  const SyncOfflineIndicator({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<bool>(
-      stream: syncService.connectivityStream,
-      builder: (context, snapshot) {
-        final isOnline = snapshot.data ?? true;
-        
-        if (isOnline) {
+    return Consumer<SyncViewModel>(
+      builder: (context, syncViewModel, child) {
+        if (syncViewModel.isOnline) {
           return const SizedBox.shrink();
         }
 
         return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-          color: Colors.orange.shade100,
+          padding: const EdgeInsets.all(12),
+          margin: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.orange.withOpacity(0.3)),
+          ),
           child: Row(
             children: [
               Icon(
                 Icons.wifi_off,
-                color: Colors.orange.shade800,
-                size: 16,
+                color: Colors.orange,
+                size: 20,
               ),
               const SizedBox(width: 8),
-              Text(
-                'Sin conexión a internet. Los cambios se guardarán localmente.',
-                style: TextStyle(
-                  color: Colors.orange.shade800,
-                  fontSize: 12,
+              Expanded(
+                child: Text(
+                  'Modo offline - Los datos se guardan localmente en Hive',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.orange.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],

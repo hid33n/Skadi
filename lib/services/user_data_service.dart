@@ -3,36 +3,31 @@ import '../models/product.dart';
 import '../models/category.dart' as app_category;
 import '../models/sale.dart';
 import '../models/movement.dart';
-import '../models/organization.dart';
 import '../models/user_profile.dart';
 import '../utils/error_handler.dart';
 
 class UserDataService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Referencias a las subcolecciones del usuario
+  // Referencias a las subcolecciones del usuario - Cambiado de 'users' a 'pm'
   CollectionReference _getUserProductsRef(String userId) => 
-      _firestore.collection('users').doc(userId).collection('data').doc('products').collection('items');
+      _firestore.collection('pm').doc(userId).collection('products');
   
   CollectionReference _getUserCategoriesRef(String userId) => 
-      _firestore.collection('users').doc(userId).collection('data').doc('categories').collection('items');
+      _firestore.collection('pm').doc(userId).collection('categories');
   
   CollectionReference _getUserSalesRef(String userId) => 
-      _firestore.collection('users').doc(userId).collection('data').doc('sales').collection('items');
+      _firestore.collection('pm').doc(userId).collection('sales');
   
   CollectionReference _getUserMovementsRef(String userId) => 
-      _firestore.collection('users').doc(userId).collection('data').doc('movements').collection('items');
-
-  DocumentReference _getUserOrganizationRef(String userId) => 
-      _firestore.collection('users').doc(userId).collection('profile').doc('organization');
+      _firestore.collection('pm').doc(userId).collection('movements');
 
   // Métodos para Productos
-  Future<List<Product>> getProducts(String userId, String organizationId) async {
+  Future<List<Product>> getProducts(String userId) async {
     try {
       final snapshot = await _getUserProductsRef(userId).get();
       return snapshot.docs
           .map((doc) => Product.fromMap(doc.data() as Map<String, dynamic>, doc.id))
-          .where((product) => product.organizationId == organizationId)
           .toList();
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
@@ -65,11 +60,10 @@ class UserDataService {
   }
 
   // Métodos para Categorías
-  Future<List<app_category.Category>> getCategories(String userId, String organizationId) async {
+  Future<List<app_category.Category>> getCategories(String userId) async {
     try {
       print('🔄 UserDataService: Cargando categorías desde Firebase');
       print('  - User ID: $userId');
-      print('  - Organization ID: $organizationId');
       
       final snapshot = await _getUserCategoriesRef(userId).get();
       print('📊 UserDataService: Documentos encontrados en Firebase: ${snapshot.docs.length}');
@@ -80,19 +74,10 @@ class UserDataService {
       
       print('📊 UserDataService: Todas las categorías: ${allCategories.length}');
       for (var category in allCategories) {
-        print('  - ${category.name} (ID: ${category.id}, Org: ${category.organizationId})');
+        print('  - ${category.name} (ID: ${category.id})');
       }
       
-      final filteredCategories = allCategories
-          .where((category) => category.organizationId == organizationId)
-          .toList();
-      
-      print('📊 UserDataService: Categorías filtradas por org: ${filteredCategories.length}');
-      for (var category in filteredCategories) {
-        print('  ✅ ${category.name} (ID: ${category.id})');
-      }
-      
-      return filteredCategories;
+      return allCategories;
     } catch (e, stackTrace) {
       print('❌ UserDataService: Error cargando categorías: $e');
       throw AppError.fromException(e, stackTrace);
@@ -125,12 +110,11 @@ class UserDataService {
   }
 
   // Métodos para Ventas
-  Future<List<Sale>> getSales(String userId, String organizationId) async {
+  Future<List<Sale>> getSales(String userId) async {
     try {
       final snapshot = await _getUserSalesRef(userId).get();
       return snapshot.docs
           .map((doc) => Sale.fromMap(doc.data() as Map<String, dynamic>, doc.id))
-          .where((sale) => sale.organizationId == organizationId)
           .toList();
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
@@ -163,12 +147,11 @@ class UserDataService {
   }
 
   // Métodos para Movimientos
-  Future<List<Movement>> getMovements(String userId, String organizationId) async {
+  Future<List<Movement>> getMovements(String userId) async {
     try {
       final snapshot = await _getUserMovementsRef(userId).get();
       return snapshot.docs
           .map((doc) => Movement.fromMap(doc.data() as Map<String, dynamic>, doc.id))
-          .where((movement) => movement.organizationId == organizationId)
           .toList();
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
@@ -200,22 +183,12 @@ class UserDataService {
     }
   }
 
-  // Métodos para Organización
-  Future<Organization?> getOrganization(String userId) async {
+  // Métodos para Usuarios
+  Future<UserProfile?> getUser(String userId) async {
     try {
-      final doc = await _getUserOrganizationRef(userId).get();
+      final doc = await _firestore.collection('pm').doc(userId).get();
       if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
-        String orgId = data['id'] as String? ?? '';
-        
-        // Si no tiene ID o tiene ID vacío, migrar la organización
-        if (orgId.isEmpty || orgId == 'organization') {
-          print('🔄 UserDataService: Migrando organización existente...');
-          orgId = await _migrateExistingOrganization(userId, data);
-        }
-        
-        print('✅ UserDataService: Organización encontrada - id: $orgId, name: ${data['name']}');
-        return Organization.fromMap(data, orgId);
+        return UserProfile.fromMap(doc.data()!, doc.id);
       }
       return null;
     } catch (e, stackTrace) {
@@ -223,123 +196,27 @@ class UserDataService {
     }
   }
 
-  /// Migrar organización existente que no tiene ID único
-  Future<String> _migrateExistingOrganization(String userId, Map<String, dynamic> data) async {
-    final organizationName = data['name'] as String? ?? 'Organización';
-    final uniqueId = await _generateUniqueOrganizationId(organizationName);
-    
-    // Actualizar el documento con el nuevo ID
-    await _getUserOrganizationRef(userId).update({'id': uniqueId});
-    
-    // Migrar categorías existentes que usen el ID anterior
-    await _migrateExistingCategories(userId, uniqueId);
-    
-    print('✅ UserDataService: Organización migrada con ID: $uniqueId');
-    return uniqueId;
-  }
-
-  /// Migrar categorías existentes que usen el ID anterior de la organización
-  Future<void> _migrateExistingCategories(String userId, String newOrganizationId) async {
+  Future<void> updateUser(String userId, UserProfile user) async {
     try {
-      final categoriesRef = _getUserCategoriesRef(userId);
-      final snapshot = await categoriesRef.get();
-      
-      int migratedCount = 0;
-      for (final doc in snapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        final currentOrgId = data['organizationId'] as String? ?? '';
-        
-        // Si la categoría usa el ID anterior, actualizarla
-        if (currentOrgId == 'organization' || currentOrgId.isEmpty) {
-          await doc.reference.update({'organizationId': newOrganizationId});
-          migratedCount++;
-          print('🔄 UserDataService: Categoría migrada: ${data['name']} -> orgId: $newOrganizationId');
-        }
-      }
-      
-      if (migratedCount > 0) {
-        print('✅ UserDataService: $migratedCount categorías migradas al nuevo ID de organización');
-      }
-    } catch (e, stackTrace) {
-      print('⚠️ UserDataService: Error migrando categorías: $e');
-      // No lanzar error para no interrumpir el flujo principal
-    }
-  }
-
-  Future<String> createOrganization(String userId, Organization organization) async {
-    try {
-      // Generar ID único basado en el nombre de la organización
-      final uniqueId = await _generateUniqueOrganizationId(organization.name);
-      
-      // Crear la organización con el ID único
-      final organizationWithId = organization.copyWith(id: uniqueId);
-      
-      final docRef = _getUserOrganizationRef(userId);
-      await docRef.set(organizationWithId.toMap());
-      
-      print('✅ UserDataService: Organización creada con ID único: $uniqueId');
-      return uniqueId;
+      await _firestore.collection('pm').doc(userId).update(user.toMap());
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
     }
   }
 
-  /// Generar ID único basado en el nombre de la organización
-  Future<String> _generateUniqueOrganizationId(String organizationName) async {
-    // Normalizar el nombre: minúsculas, sin espacios, solo letras y números
-    String baseId = organizationName
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]'), '')
-        .trim();
-    
-    // Si está vacío, usar 'org' como base
-    if (baseId.isEmpty) {
-      baseId = 'org';
-    }
-    
-    // Limitar longitud a 20 caracteres
-    if (baseId.length > 20) {
-      baseId = baseId.substring(0, 20);
-    }
-    
-    // Buscar si ya existe una organización con este ID base
-    int counter = 1;
-    String uniqueId = baseId;
-    
-    // Buscar en todas las organizaciones existentes
-    final organizationsRef = _firestore.collection('users');
-    final usersSnapshot = await organizationsRef.get();
-    
-    for (final userDoc in usersSnapshot.docs) {
-      final orgDoc = await userDoc.reference.collection('profile').doc('organization').get();
-      if (orgDoc.exists) {
-        final data = orgDoc.data() as Map<String, dynamic>;
-        final existingId = data['id'] as String? ?? '';
-        if (existingId == uniqueId) {
-          // ID ya existe, agregar número
-          uniqueId = '${baseId}_$counter';
-          counter++;
-        }
-      }
-    }
-    
-    print('🆔 UserDataService: ID único generado: $uniqueId para organización: $organizationName');
-    return uniqueId;
-  }
-
-  Future<void> updateOrganization(String userId, Organization organization) async {
+  Future<void> deleteUser(String userId) async {
     try {
-      await _getUserOrganizationRef(userId).update(organization.toMap());
+      await _firestore.collection('pm').doc(userId).delete();
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
     }
   }
 
-  // Métodos de utilidad
+  // Métodos para inicialización de datos
   Future<void> initializeUserData(String userId) async {
     try {
       // Crear la estructura inicial de datos para el usuario
-      final userDataRef = _firestore.collection('users').doc(userId).collection('data');
+      final userDataRef = _firestore.collection('pm').doc(userId).collection('data');
       
       await Future.wait([
         userDataRef.doc('products').set({'createdAt': FieldValue.serverTimestamp()}),
@@ -352,51 +229,10 @@ class UserDataService {
     }
   }
 
-  // Métodos para manejo de usuarios de organización (placeholder para futuras implementaciones)
-  Future<List<UserProfile>> getUsersByOrganization(String organizationId) async {
-    try {
-      // Por ahora retornamos una lista vacía
-      // En el futuro, esto buscaría usuarios que compartan la misma organización
-      return [];
-    } catch (e, stackTrace) {
-      throw AppError.fromException(e, stackTrace);
-    }
-  }
-
-  Future<Map<String, dynamic>> getOrganizationStats(String organizationId) async {
-    try {
-      // Por ahora retornamos estadísticas básicas
-      return {
-        'totalProducts': 0,
-        'totalSales': 0,
-        'totalRevenue': 0.0,
-        'activeUsers': 0,
-      };
-    } catch (e, stackTrace) {
-      throw AppError.fromException(e, stackTrace);
-    }
-  }
-
-  Future<void> inviteUser(String userId, String organizationId, UserRole role) async {
-    try {
-      // Placeholder para futura implementación de invitaciones
-      // Por ahora solo registramos la acción
-      await _firestore.collection('invitations').add({
-        'userId': userId,
-        'organizationId': organizationId,
-        'role': role.name,
-        'status': 'pending',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-    } catch (e, stackTrace) {
-      throw AppError.fromException(e, stackTrace);
-    }
-  }
-
   Future<void> activateUser(String userId) async {
     try {
       // Placeholder para futura implementación
-      await _firestore.collection('users').doc(userId).update({
+      await _firestore.collection('pm').doc(userId).update({
         'isActive': true,
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -405,10 +241,10 @@ class UserDataService {
     }
   }
 
-  Future<void> suspendUser(String userId) async {
+  Future<void> deactivateUser(String userId) async {
     try {
       // Placeholder para futura implementación
-      await _firestore.collection('users').doc(userId).update({
+      await _firestore.collection('pm').doc(userId).update({
         'isActive': false,
         'updatedAt': FieldValue.serverTimestamp(),
       });

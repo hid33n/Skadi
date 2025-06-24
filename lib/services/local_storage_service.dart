@@ -1,507 +1,139 @@
-import 'dart:html' as html;
 import 'dart:convert';
-import 'dart:async';
-import '../models/product.dart';
-import '../models/category.dart' as app_category;
-import '../models/sale.dart';
-import '../models/movement.dart';
-import '../models/organization.dart';
+import 'dart:html' as html;
 import '../models/user_profile.dart';
+import '../utils/error_handler.dart';
 
 class LocalStorageService {
-  // Usar localStorage como fallback simple para evitar problemas de IndexedDB
-  static const String _prefix = 'stock_app_';
+  static const String _userProfileKey = 'user_profile';
+  static const String _settingsKey = 'app_settings';
+  static const String _themeKey = 'theme_mode';
   
-  // Nombres de las tablas
-  static const String _productsTable = 'products';
-  static const String _categoriesTable = 'categories';
-  static const String _salesTable = 'sales';
-  static const String _movementsTable = 'movements';
-  static const String _organizationTable = 'organization';
-  static const String _userProfileTable = 'userProfile';
-  static const String _syncQueueTable = 'syncQueue';
-  static const String _settingsTable = 'settings';
+  bool _isInitialized = false;
 
-  final Completer<void> _ready = Completer<void>();
+  bool get isInitialized => _isInitialized;
 
-  // Singleton pattern
-  static final LocalStorageService _instance = LocalStorageService._internal();
-  factory LocalStorageService() => _instance;
-  LocalStorageService._internal() {
-    _ready.complete(); // Inicialización inmediata
-  }
-
-  /// Inicializar la base de datos local
+  /// Inicializar el servicio
   Future<void> initialize() async {
-    await _ready.future;
-  }
+    if (_isInitialized) return;
 
-  /// Obtener datos de localStorage
-  List<Map<String, dynamic>> _getData(String table) {
-    final key = '$_prefix$table';
-    final data = html.window.localStorage[key];
-    if (data == null || data.isEmpty) return [];
-    
     try {
-      final List<dynamic> jsonList = jsonDecode(data);
-      return jsonList.cast<Map<String, dynamic>>();
-    } catch (e) {
-      return [];
-    }
-  }
-
-  /// Guardar datos en localStorage
-  void _saveData(String table, List<Map<String, dynamic>> data) {
-    try {
-      final key = '$_prefix$table';
-      
-      // Limpiar datos antes de serializar para evitar referencias circulares
-      final cleanData = data.map((item) {
-        final cleanItem = <String, dynamic>{};
-        for (final entry in item.entries) {
-          final key = entry.key;
-          final value = entry.value;
-          
-          // Solo incluir valores que se pueden serializar a JSON
-          if (value is String || value is int || value is double || value is bool || value == null) {
-            cleanItem[key] = value;
-          } else if (value is List) {
-            // Filtrar listas para solo incluir valores serializables
-            cleanItem[key] = value.where((item) => 
-              item is String || item is int || item is double || item is bool || item == null
-            ).toList();
-          } else if (value is Map) {
-            // Filtrar maps para solo incluir valores serializables
-            final cleanMap = <String, dynamic>{};
-            for (final mapEntry in value.entries) {
-              final mapValue = mapEntry.value;
-              if (mapValue is String || mapValue is int || mapValue is double || mapValue is bool || mapValue == null) {
-                cleanMap[mapEntry.key.toString()] = mapValue;
-              }
-            }
-            cleanItem[key] = cleanMap;
-          }
-        }
-        return cleanItem;
-      }).toList();
-      
-      html.window.localStorage[key] = jsonEncode(cleanData);
-    } catch (e) {
-      print('❌ LocalStorageService: Error guardando datos en tabla $table: $e');
-      // En caso de error, intentar guardar solo los campos básicos
-      try {
-        final key = '$_prefix$table';
-        final fallbackData = data.map((item) {
-          return {
-            'id': item['id']?.toString() ?? '',
-            'name': item['name']?.toString() ?? '',
-            'organizationId': item['organizationId']?.toString() ?? '',
-            'createdAt': item['createdAt']?.toString() ?? '',
-            'updatedAt': item['updatedAt']?.toString() ?? '',
-          };
-        }).toList();
-        
-        html.window.localStorage[key] = jsonEncode(fallbackData);
-        print('✅ LocalStorageService: Datos guardados con fallback para tabla $table');
-      } catch (fallbackError) {
-        print('❌ LocalStorageService: Error crítico guardando datos: $fallbackError');
+      // Verificar que localStorage está disponible
+      if (html.window.localStorage == null) {
+        throw AppError.validation('localStorage no está disponible');
       }
-    }
-  }
-
-  /// Filtrar datos por organización
-  List<Map<String, dynamic>> _filterByOrganization(List<Map<String, dynamic>> data, String organizationId) {
-    return data.where((item) => item['organizationId'] == organizationId).toList();
-  }
-
-  // ===== MÉTODOS PARA PRODUCTOS =====
-
-  /// Guardar producto localmente
-  Future<void> saveProduct(Product product) async {
-    await _ready.future;
-    final data = _getData(_productsTable);
-    
-    // Buscar si ya existe
-    final index = data.indexWhere((item) => item['id'] == product.id);
-    final productData = {
-      ...product.toMap(),
-      'id': product.id,
-      'lastSync': DateTime.now().toIso8601String(),
-    };
-    
-    if (index >= 0) {
-      data[index] = productData;
-    } else {
-      data.add(productData);
-    }
-    
-    _saveData(_productsTable, data);
-  }
-
-  /// Obtener productos localmente
-  Future<List<Product>> getProducts(String organizationId) async {
-    await _ready.future;
-    final data = _getData(_productsTable);
-    print('📊 LocalStorage: Datos brutos de productos: ${data.length}');
-    for (var item in data) {
-      print('  - ${item['name']} (ID: ${item['id']}, Org: ${item['organizationId']})');
-    }
-    
-    final filteredData = _filterByOrganization(data, organizationId);
-    print('📊 LocalStorage: Productos filtrados para org $organizationId: ${filteredData.length}');
-    for (var item in filteredData) {
-      print('  ✅ ${item['name']} (ID: ${item['id']})');
-    }
-    
-    final products = filteredData.map((item) => Product.fromMap(item, item['id'])).toList();
-    print('📊 LocalStorage: Productos convertidos: ${products.length}');
-    return products;
-  }
-
-  /// Eliminar producto localmente
-  Future<void> deleteProduct(String productId) async {
-    await _ready.future;
-    final data = _getData(_productsTable);
-    data.removeWhere((item) => item['id'] == productId);
-    _saveData(_productsTable, data);
-  }
-
-  /// Actualizar ID de producto localmente
-  Future<void> updateProductId(String oldId, String newId) async {
-    await _ready.future;
-    final data = _getData(_productsTable);
-    final index = data.indexWhere((item) => item['id'] == oldId);
-    if (index >= 0) {
-      data[index]['id'] = newId;
-      _saveData(_productsTable, data);
-    }
-  }
-
-  // ===== MÉTODOS PARA CATEGORÍAS =====
-
-  /// Guardar categoría localmente
-  Future<void> saveCategory(app_category.Category category) async {
-    await _ready.future;
-    final data = _getData(_categoriesTable);
-    
-    final index = data.indexWhere((item) => item['id'] == category.id);
-    final categoryData = {
-      ...category.toMap(),
-      'id': category.id,
-      'lastSync': DateTime.now().toIso8601String(),
-    };
-    
-    if (index >= 0) {
-      data[index] = categoryData;
-    } else {
-      data.add(categoryData);
-    }
-    
-    _saveData(_categoriesTable, data);
-  }
-
-  /// Obtener categorías localmente
-  Future<List<app_category.Category>> getCategories(String organizationId) async {
-    await _ready.future;
-    final data = _getData(_categoriesTable);
-    final filteredData = _filterByOrganization(data, organizationId);
-    
-    return filteredData.map((item) => app_category.Category.fromMap(item, item['id'])).toList();
-  }
-
-  /// Eliminar categoría localmente
-  Future<void> deleteCategory(String categoryId) async {
-    await _ready.future;
-    final data = _getData(_categoriesTable);
-    data.removeWhere((item) => item['id'] == categoryId);
-    _saveData(_categoriesTable, data);
-  }
-
-  /// Actualizar ID de categoría localmente
-  Future<void> updateCategoryId(String oldId, String newId) async {
-    await _ready.future;
-    final data = _getData(_categoriesTable);
-    final index = data.indexWhere((item) => item['id'] == oldId);
-    if (index >= 0) {
-      data[index]['id'] = newId;
-      _saveData(_categoriesTable, data);
-    }
-  }
-
-  // ===== MÉTODOS PARA VENTAS =====
-
-  /// Guardar venta localmente
-  Future<void> saveSale(Sale sale) async {
-    await _ready.future;
-    final data = _getData(_salesTable);
-    
-    final index = data.indexWhere((item) => item['id'] == sale.id);
-    final saleData = {
-      ...sale.toMap(),
-      'id': sale.id,
-      'lastSync': DateTime.now().toIso8601String(),
-    };
-    
-    if (index >= 0) {
-      data[index] = saleData;
-    } else {
-      data.add(saleData);
-    }
-    
-    _saveData(_salesTable, data);
-  }
-
-  /// Obtener ventas localmente
-  Future<List<Sale>> getSales(String organizationId) async {
-    await _ready.future;
-    final data = _getData(_salesTable);
-    final filteredData = _filterByOrganization(data, organizationId);
-    
-    return filteredData.map((item) => Sale.fromMap(item, item['id'])).toList();
-  }
-
-  /// Eliminar venta localmente
-  Future<void> deleteSale(String saleId) async {
-    await _ready.future;
-    final data = _getData(_salesTable);
-    data.removeWhere((item) => item['id'] == saleId);
-    _saveData(_salesTable, data);
-  }
-
-  // ===== MÉTODOS PARA MOVIMIENTOS =====
-
-  /// Guardar movimiento localmente
-  Future<void> saveMovement(Movement movement) async {
-    await _ready.future;
-    final data = _getData(_movementsTable);
-    
-    final index = data.indexWhere((item) => item['id'] == movement.id);
-    final movementData = {
-      ...movement.toMap(),
-      'id': movement.id,
-      'lastSync': DateTime.now().toIso8601String(),
-    };
-    
-    if (index >= 0) {
-      data[index] = movementData;
-    } else {
-      data.add(movementData);
-    }
-    
-    _saveData(_movementsTable, data);
-  }
-
-  /// Obtener movimientos localmente
-  Future<List<Movement>> getMovements(String organizationId) async {
-    await _ready.future;
-    final data = _getData(_movementsTable);
-    final filteredData = _filterByOrganization(data, organizationId);
-    
-    return filteredData.map((item) => Movement.fromMap(item, item['id'])).toList();
-  }
-
-  /// Eliminar movimiento localmente
-  Future<void> deleteMovement(String movementId) async {
-    await _ready.future;
-    final data = _getData(_movementsTable);
-    data.removeWhere((item) => item['id'] == movementId);
-    _saveData(_movementsTable, data);
-  }
-
-  // ===== MÉTODOS PARA ORGANIZACIÓN =====
-
-  /// Guardar organización localmente
-  Future<void> saveOrganization(Organization organization) async {
-    await _ready.future;
-    final data = _getData(_organizationTable);
-    
-    final index = data.indexWhere((item) => item['id'] == organization.id);
-    final orgData = {
-      ...organization.toMap(),
-      'lastSync': DateTime.now().toIso8601String(),
-    };
-    
-    if (index >= 0) {
-      data[index] = orgData;
-    } else {
-      data.add(orgData);
-    }
-    
-    _saveData(_organizationTable, data);
-  }
-
-  /// Obtener organización localmente
-  Future<Organization?> getOrganization() async {
-    await _ready.future;
-    final data = _getData(_organizationTable);
-    
-    if (data.isEmpty) return null;
-    return Organization.fromMap(data.first, data.first['id']);
-  }
-
-  // ===== MÉTODOS PARA PERFIL DE USUARIO =====
-
-  /// Guardar perfil de usuario localmente
-  Future<void> saveUserProfile(UserProfile profile) async {
-    await _ready.future;
-    final data = _getData(_userProfileTable);
-    
-    final index = data.indexWhere((item) => item['id'] == profile.id);
-    final profileData = {
-      ...profile.toMap(),
-      'lastSync': DateTime.now().toIso8601String(),
-    };
-    
-    if (index >= 0) {
-      data[index] = profileData;
-    } else {
-      data.add(profileData);
-    }
-    
-    _saveData(_userProfileTable, data);
-  }
-
-  /// Obtener perfil de usuario localmente
-  Future<UserProfile?> getUserProfile() async {
-    await _ready.future;
-    final data = _getData(_userProfileTable);
-    
-    if (data.isEmpty) return null;
-    return UserProfile.fromMap(data.first, data.first['id']);
-  }
-
-  // ===== MÉTODOS PARA COLA DE SINCRONIZACIÓN =====
-
-  /// Agregar operación a la cola de sincronización
-  Future<void> addToSyncQueue(String type, String action, Map<String, dynamic> itemData) async {
-    await _ready.future;
-    final queueData = _getData(_syncQueueTable);
-    
-    final syncItem = {
-      'id': DateTime.now().millisecondsSinceEpoch, // ID único
-      'type': type,
-      'action': action,
-      'data': itemData,
-      'status': 'pending',
-      'createdAt': DateTime.now().toIso8601String(),
-      'retryCount': 0,
-    };
-    
-    queueData.add(syncItem);
-    _saveData(_syncQueueTable, queueData);
-  }
-
-  /// Obtener elementos pendientes de sincronización
-  Future<List<Map<String, dynamic>>> getPendingSyncItems() async {
-    await _ready.future;
-    final data = _getData(_syncQueueTable);
-    return data.where((item) => item['status'] == 'pending').toList();
-  }
-
-  /// Marcar elemento como sincronizado
-  Future<void> markSyncItemComplete(int id) async {
-    await _ready.future;
-    final data = _getData(_syncQueueTable);
-    data.removeWhere((item) => item['id'] == id);
-    _saveData(_syncQueueTable, data);
-  }
-
-  /// Marcar elemento como fallido
-  Future<void> markSyncItemFailed(int id, String error) async {
-    await _ready.future;
-    final data = _getData(_syncQueueTable);
-    final index = data.indexWhere((item) => item['id'] == id);
-    
-    if (index >= 0) {
-      data[index]['status'] = 'failed';
-      data[index]['error'] = error;
-      data[index]['retryCount'] = (data[index]['retryCount'] ?? 0) + 1;
-      data[index]['lastRetry'] = DateTime.now().toIso8601String();
       
-      _saveData(_syncQueueTable, data);
+      _isInitialized = true;
+    } catch (e) {
+      throw AppError.fromException(e);
     }
   }
 
-  // ===== MÉTODOS PARA CONFIGURACIÓN =====
+  /// Guardar perfil de usuario
+  Future<void> saveUserProfile(UserProfile profile) async {
+    if (!_isInitialized) await initialize();
+    
+    try {
+      final data = profile.toMap();
+      html.window.localStorage[_userProfileKey] = jsonEncode(data);
+    } catch (e) {
+      throw AppError.fromException(e);
+    }
+  }
+
+  /// Obtener perfil de usuario
+  Future<UserProfile?> getUserProfile() async {
+    if (!_isInitialized) await initialize();
+    
+    try {
+      final data = html.window.localStorage[_userProfileKey];
+      if (data != null) {
+        final map = jsonDecode(data) as Map<String, dynamic>;
+        final id = map['id'] as String;
+        return UserProfile.fromMap(map, id);
+      }
+      return null;
+    } catch (e) {
+      throw AppError.fromException(e);
+    }
+  }
+
+  /// Eliminar perfil de usuario
+  Future<void> clearUserProfile() async {
+    if (!_isInitialized) await initialize();
+    
+    try {
+      html.window.localStorage.remove(_userProfileKey);
+    } catch (e) {
+      throw AppError.fromException(e);
+    }
+  }
 
   /// Guardar configuración
-  Future<void> saveSetting(String key, dynamic value) async {
-    await _ready.future;
-    final data = _getData(_settingsTable);
+  Future<void> saveSettings(Map<String, dynamic> settings) async {
+    if (!_isInitialized) await initialize();
     
-    final index = data.indexWhere((item) => item['key'] == key);
-    final settingData = {
-      'key': key,
-      'value': value,
-      'updatedAt': DateTime.now().toIso8601String(),
-    };
-    
-    if (index >= 0) {
-      data[index] = settingData;
-    } else {
-      data.add(settingData);
+    try {
+      html.window.localStorage[_settingsKey] = jsonEncode(settings);
+    } catch (e) {
+      throw AppError.fromException(e);
     }
-    
-    _saveData(_settingsTable, data);
   }
 
   /// Obtener configuración
-  Future<dynamic> getSetting(String key) async {
-    await _ready.future;
-    final data = _getData(_settingsTable);
-    final item = data.firstWhere((item) => item['key'] == key, orElse: () => {});
-    return item['value'];
+  Future<Map<String, dynamic>> getSettings() async {
+    if (!_isInitialized) await initialize();
+    
+    try {
+      final data = html.window.localStorage[_settingsKey];
+      if (data != null) {
+        return Map<String, dynamic>.from(jsonDecode(data));
+      }
+      return {};
+    } catch (e) {
+      throw AppError.fromException(e);
+    }
   }
 
-  // ===== MÉTODOS DE UTILIDAD =====
+  /// Guardar modo de tema
+  Future<void> saveThemeMode(String themeMode) async {
+    if (!_isInitialized) await initialize();
+    
+    try {
+      html.window.localStorage[_themeKey] = themeMode;
+    } catch (e) {
+      throw AppError.fromException(e);
+    }
+  }
 
-  /// Limpiar todos los datos locales
-  Future<void> clearAllData() async {
-    await _ready.future;
+  /// Obtener modo de tema
+  Future<String?> getThemeMode() async {
+    if (!_isInitialized) await initialize();
     
-    final tables = [_productsTable, _categoriesTable, _salesTable, _movementsTable, 
-                   _organizationTable, _userProfileTable, _syncQueueTable, _settingsTable];
+    try {
+      return html.window.localStorage[_themeKey];
+    } catch (e) {
+      throw AppError.fromException(e);
+    }
+  }
+
+  /// Limpiar todos los datos
+  Future<void> clearAll() async {
+    if (!_isInitialized) await initialize();
     
-    for (final table in tables) {
-      final key = '$_prefix$table';
-      html.window.localStorage.remove(key);
+    try {
+      html.window.localStorage.clear();
+    } catch (e) {
+      throw AppError.fromException(e);
     }
   }
 
   /// Obtener estadísticas de almacenamiento
-  Future<Map<String, int>> getStorageStats() async {
-    await _ready.future;
-    final stats = <String, int>{};
-    
-    final tables = [_productsTable, _categoriesTable, _salesTable, _movementsTable, 
-                   _organizationTable, _userProfileTable, _syncQueueTable, _settingsTable];
-    
-    for (final table in tables) {
-      final data = _getData(table);
-      stats[table] = data.length;
-    }
-    
-    return stats;
+  Map<String, dynamic> getStorageStats() {
+    return {
+      'isInitialized': _isInitialized,
+      'hasUserProfile': html.window.localStorage[_userProfileKey] != null,
+      'hasSettings': html.window.localStorage[_settingsKey] != null,
+      'hasTheme': html.window.localStorage[_themeKey] != null,
+    };
   }
-
-  /// Verificar si hay conexión a internet
-  bool get isOnline => html.window.navigator.onLine ?? true;
-
-  /// Escuchar cambios en la conectividad
-  Stream<bool> get connectivityStream {
-    // Crear un StreamController para combinar los eventos
-    final controller = StreamController<bool>.broadcast();
-    
-    // Escuchar eventos online
-    html.window.onOnline.listen((_) {
-      controller.add(true);
-    });
-    
-    // Escuchar eventos offline
-    html.window.onOffline.listen((_) {
-      controller.add(false);
-    });
-    
-    return controller.stream;
-  }
-}
+} 

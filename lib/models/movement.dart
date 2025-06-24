@@ -12,7 +12,6 @@ class Movement {
   final int quantity;
   final MovementType type;
   final DateTime date;
-  final String organizationId;
   final String? note;
 
   Movement({
@@ -22,7 +21,6 @@ class Movement {
     required this.quantity,
     required this.type,
     required this.date,
-    required this.organizationId,
     this.note,
   });
 
@@ -33,7 +31,6 @@ class Movement {
       'quantity': quantity,
       'type': type.toString().split('.').last,
       'date': Timestamp.fromDate(date),
-      'organizationId': organizationId,
       'note': note,
     };
   }
@@ -48,7 +45,6 @@ class Movement {
         (e) => e.toString().split('.').last == map['type'],
       ),
       date: (map['date'] as Timestamp).toDate(),
-      organizationId: map['organizationId'] as String,
       note: map['note'] as String?,
     );
   }
@@ -60,7 +56,6 @@ class Movement {
     int? quantity,
     MovementType? type,
     DateTime? date,
-    String? organizationId,
     String? note,
   }) {
     return Movement(
@@ -70,7 +65,6 @@ class Movement {
       quantity: quantity ?? this.quantity,
       type: type ?? this.type,
       date: date ?? this.date,
-      organizationId: organizationId ?? this.organizationId,
       note: note ?? this.note,
     );
   }

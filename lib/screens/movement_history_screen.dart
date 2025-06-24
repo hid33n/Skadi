@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../models/movement.dart';
 import '../viewmodels/movement_viewmodel.dart';
 import '../viewmodels/product_viewmodel.dart';
-import '../viewmodels/organization_viewmodel.dart';
 import '../services/auth_service.dart';
 import '../utils/error_handler.dart';
 
@@ -43,18 +42,13 @@ class _MovementHistoryScreenState extends State<MovementHistoryScreen> {
   }
 
   Future<void> _loadData() async {
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
+    final movementViewModel = context.read<MovementViewModel>();
+    final productViewModel = context.read<ProductViewModel>();
     
-    if (organizationId != null) {
-      final movementViewModel = context.read<MovementViewModel>();
-      final productViewModel = context.read<ProductViewModel>();
-      
-      await Future.wait([
-        movementViewModel.loadMovements(organizationId),
-        productViewModel.loadProducts(organizationId),
-      ]);
-    }
+    await Future.wait([
+      movementViewModel.loadMovements(),
+      productViewModel.loadProducts(),
+    ]);
   }
 
   List<Movement> _getFilteredMovements(List<Movement> movements) {

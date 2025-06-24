@@ -27,7 +27,7 @@ class RecentActivity extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  saleVM.error!.message,
+                  saleVM.error!,
                   style: const TextStyle(fontSize: 14),
                   textAlign: TextAlign.center,
                 ),

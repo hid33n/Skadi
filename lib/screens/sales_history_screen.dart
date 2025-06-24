@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../models/sale.dart';
 import '../viewmodels/sale_viewmodel.dart';
-import '../viewmodels/organization_viewmodel.dart';
-import '../utils/error_handler.dart';
 
 class SalesHistoryScreen extends StatefulWidget {
   const SalesHistoryScreen({super.key});
@@ -23,12 +20,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   }
 
   Future<void> _loadSales() async {
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId != null) {
-      await context.read<SaleViewModel>().loadSales(organizationId);
-    }
+    await context.read<SaleViewModel>().loadSales();
   }
 
   @override
@@ -62,7 +54,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    viewModel.error!.message,
+                    viewModel.error!,
                     style: const TextStyle(fontSize: 16),
                     textAlign: TextAlign.center,
                   ),
