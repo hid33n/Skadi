@@ -1,16 +1,18 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stock/models/movement.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() {
   group('Movement Model Tests', () {
     test('Movement.fromMap should create Movement from map', () {
       // Arrange
+      final now = DateTime.now();
       final map = {
         'productId': 'product-id',
         'productName': 'Test Product',
         'quantity': 5,
         'type': 'entry',
-        'date': DateTime.now(),
+        'date': Timestamp.fromDate(now),
         'note': 'Test Note',
       };
 
@@ -28,13 +30,14 @@ void main() {
 
     test('Movement.toMap should convert Movement to map', () {
       // Arrange
+      final now = DateTime.now();
       final movement = Movement(
         id: 'test-id',
         productId: 'product-id',
         productName: 'Test Product',
         quantity: 5,
         type: MovementType.entry,
-        date: DateTime.now(),
+        date: now,
         note: 'Test Note',
       );
 
@@ -45,19 +48,21 @@ void main() {
       expect(map['productId'], 'product-id');
       expect(map['productName'], 'Test Product');
       expect(map['quantity'], 5);
-      expect(map['type'], MovementType.entry);
+      expect(map['type'], 'entry');
       expect(map['note'], 'Test Note');
+      expect(map['date'], isA<Timestamp>());
     });
 
     test('Movement.copyWith should create new Movement with updated fields', () {
       // Arrange
+      final now = DateTime.now();
       final movement = Movement(
         id: 'test-id',
         productId: 'product-id',
         productName: 'Test Product',
         quantity: 5,
         type: MovementType.entry,
-        date: DateTime.now(),
+        date: now,
         note: 'Test Note',
       );
 
@@ -75,6 +80,48 @@ void main() {
       expect(updatedMovement.quantity, 10);
       expect(updatedMovement.type, MovementType.exit);
       expect(updatedMovement.note, 'Test Note');
+    });
+
+    test('Movement should handle exit type correctly', () {
+      // Arrange
+      final now = DateTime.now();
+      final movement = Movement(
+        id: 'test-id',
+        productId: 'product-id',
+        productName: 'Test Product',
+        quantity: 3,
+        type: MovementType.exit,
+        date: now,
+        note: 'Sale',
+      );
+
+      // Act
+      final map = movement.toMap();
+
+      // Assert
+      expect(map['type'], 'exit');
+      expect(movement.type, MovementType.exit);
+    });
+
+    test('Movement should handle null note', () {
+      // Arrange
+      final now = DateTime.now();
+      final movement = Movement(
+        id: 'test-id',
+        productId: 'product-id',
+        productName: 'Test Product',
+        quantity: 5,
+        type: MovementType.entry,
+        date: now,
+        note: null,
+      );
+
+      // Act
+      final map = movement.toMap();
+
+      // Assert
+      expect(map['note'], isNull);
+      expect(movement.note, isNull);
     });
   });
 } 

@@ -1,319 +1,292 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import '../services/sync_service.dart';
-import '../models/product.dart';
-import '../models/category.dart' as app_category;
-import '../models/sale.dart';
-import '../models/movement.dart';
-import '../models/organization.dart';
-import '../models/user_profile.dart';
+import '../services/hybrid_data_service.dart';
 import '../utils/error_handler.dart';
 
 class SyncViewModel extends ChangeNotifier {
-  final SyncService _syncService = SyncService();
-  
-  SyncStatus _currentStatus = SyncStatus.idle;
-  String _currentProgress = '';
-  bool _isOnline = true;
-  Map<String, int> _storageStats = {};
-  bool _isInitialized = false;
+  final SyncService _syncService;
+  final HybridDataService _hybridService;
+
+  SyncViewModel(this._syncService, this._hybridService);
+
+  // Estados
+  bool _isOnline = false;
+  bool _isSyncing = false;
+  DateTime? _lastSyncTime;
+  int _pendingChangesCount = 0;
+  List<Map<String, dynamic>> _pendingChanges = [];
+  Timer? _statusTimer;
 
   // Getters
-  SyncService get syncService => _syncService;
-  SyncStatus get currentStatus => _currentStatus;
-  String get currentProgress => _currentProgress;
   bool get isOnline => _isOnline;
-  Map<String, int> get storageStats => _storageStats;
-  bool get isInitialized => _isInitialized;
+  bool get isSyncing => _isSyncing;
+  DateTime? get lastSyncTime => _lastSyncTime;
+  int get pendingChangesCount => _pendingChangesCount;
+  List<Map<String, dynamic>> get pendingChanges => _pendingChanges;
 
   /// Inicializar el ViewModel
   Future<void> initialize() async {
-    if (_isInitialized) return;
-
     try {
-      await _syncService.initialize();
+      // Obtener estado inicial
+      await _updateSyncStatus();
       
-      // Escuchar cambios de estado
-      _syncService.statusStream.listen((status) {
-        _currentStatus = status;
-        notifyListeners();
-      });
+      // Configurar timer para actualizar estado
+      _startStatusTimer();
+    } catch (e) {
+      throw AppError.fromException(e);
+    }
+  }
 
-      // Escuchar progreso
-      _syncService.progressStream.listen((progress) {
-        _currentProgress = progress;
-        notifyListeners();
-      });
-
-      // Escuchar conectividad
-      _syncService.connectivityStream.listen((isOnline) {
-        _isOnline = isOnline;
-        notifyListeners();
-      });
-
-      // Cargar estadísticas iniciales
-      await _loadStorageStats();
+  /// Actualizar estado de sincronización
+  Future<void> _updateSyncStatus() async {
+    try {
+      // Obtener estado del servicio híbrido
+      final hybridStatus = _hybridService.getSyncStatus();
       
-      _isInitialized = true;
+      // Obtener estado del servicio de sincronización
+      final syncStatus = _syncService.getSyncStatus();
+      
+      _isOnline = hybridStatus['isOnline'] as bool;
+      _isSyncing = syncStatus['isSyncing'] as bool;
+      _lastSyncTime = hybridStatus['lastSync'] != null 
+          ? DateTime.parse(hybridStatus['lastSync'] as String)
+          : null;
+      _pendingChangesCount = hybridStatus['pendingOperations'] as int;
+      
+      // Obtener estadísticas de la base de datos local
+      final stats = await _hybridService.getStats();
+      
       notifyListeners();
     } catch (e) {
       throw AppError.fromException(e);
     }
   }
 
-  /// Cargar estadísticas de almacenamiento
-  Future<void> _loadStorageStats() async {
-    try {
-      _storageStats = await _syncService.getStorageStats();
-      notifyListeners();
-    } catch (e) {
-      // Ignorar errores de estadísticas
-    }
+  /// Iniciar timer de actualización de estado
+  void _startStatusTimer() {
+    // Actualizar estado cada 5 segundos
+    _statusTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _updateSyncStatus();
+    });
   }
 
-  /// Sincronizar manualmente
-  Future<void> syncData() async {
-    if (!_isInitialized) await initialize();
-    
+  /// Sincronización manual
+  Future<void> forceSync() async {
     try {
-      await _syncService.syncData();
-      await _loadStorageStats();
+      await _hybridService.forceSync();
+      await _updateSyncStatus();
     } catch (e) {
       throw AppError.fromException(e);
     }
   }
 
-  // ===== MÉTODOS PARA PRODUCTOS =====
-
-  /// Crear producto
-  Future<String> createProduct(Product product) async {
-    if (!_isInitialized) await initialize();
-    
+  /// Limpiar cambios pendientes
+  Future<void> clearPendingChanges() async {
     try {
-      final productId = await _syncService.createProduct(product);
-      await _loadStorageStats();
-      return productId;
+      // Limpiar datos locales (cuidado: esto eliminará todos los datos)
+      await _hybridService.clearLocalData();
+      await _updateSyncStatus();
     } catch (e) {
       throw AppError.fromException(e);
     }
   }
 
-  /// Actualizar producto
-  Future<void> updateProduct(Product product) async {
-    if (!_isInitialized) await initialize();
+  /// Obtener estado de sincronización como texto
+  String getSyncStatusText() {
+    if (!_isOnline) {
+      return 'Sin conexión - Modo offline';
+    }
     
+    if (_isSyncing) {
+      return 'Sincronizando...';
+    }
+    
+    if (_pendingChangesCount > 0) {
+      return 'Pendientes: $_pendingChangesCount cambios';
+    }
+    
+    if (_lastSyncTime != null) {
+      final now = DateTime.now();
+      final difference = now.difference(_lastSyncTime!);
+      
+      if (difference.inMinutes < 1) {
+        return 'Sincronizado hace ${difference.inSeconds} segundos';
+      } else if (difference.inHours < 1) {
+        return 'Sincronizado hace ${difference.inMinutes} minutos';
+      } else {
+        return 'Sincronizado hace ${difference.inHours} horas';
+      }
+    }
+    
+    return 'Sincronizado';
+  }
+
+  /// Obtener icono de estado
+  String getSyncStatusIcon() {
+    if (!_isOnline) {
+      return '📡'; // Sin conexión
+    }
+    
+    if (_isSyncing) {
+      return '🔄'; // Sincronizando
+    }
+    
+    if (_pendingChangesCount > 0) {
+      return '⏳'; // Pendientes
+    }
+    
+    return '✅'; // Sincronizado
+  }
+
+  /// Obtener color de estado
+  int getSyncStatusColor() {
+    if (!_isOnline) {
+      return 0xFFFF6B6B; // Rojo
+    }
+    
+    if (_isSyncing) {
+      return 0xFFFFA726; // Naranja
+    }
+    
+    if (_pendingChangesCount > 0) {
+      return 0xFFFFB74D; // Amarillo
+    }
+    
+    return 0xFF66BB6A; // Verde
+  }
+
+  /// Obtener resumen de cambios pendientes
+  String getPendingChangesSummary() {
+    if (_pendingChangesCount == 0) {
+      return 'No hay cambios pendientes';
+    }
+
+    return '$_pendingChangesCount operaciones pendientes de sincronización';
+  }
+
+  /// Verificar si hay conflictos de sincronización
+  bool get hasConflicts {
+    // Por ahora, no implementamos detección de conflictos
+    // Se puede implementar más adelante
+    return false;
+  }
+
+  /// Resolver conflictos de sincronización
+  Future<void> resolveConflicts() async {
     try {
-      await _syncService.updateProduct(product);
-      await _loadStorageStats();
+      // Por ahora, solo forzar sincronización
+      await forceSync();
     } catch (e) {
       throw AppError.fromException(e);
     }
   }
 
-  /// Eliminar producto
-  Future<void> deleteProduct(String productId) async {
-    if (!_isInitialized) await initialize();
-    
+  /// Obtener estadísticas de sincronización
+  Future<Map<String, dynamic>> getSyncStats() async {
     try {
-      await _syncService.deleteProduct(productId);
-      await _loadStorageStats();
+      final stats = await _hybridService.getStats();
+      
+      return {
+        'isOnline': _isOnline,
+        'isSyncing': _isSyncing,
+        'lastSyncTime': _lastSyncTime?.toIso8601String(),
+        'pendingChangesCount': _pendingChangesCount,
+        'hasConflicts': hasConflicts,
+        'syncStatusText': getSyncStatusText(),
+        'syncStatusIcon': getSyncStatusIcon(),
+        'syncStatusColor': getSyncStatusColor(),
+        'pendingChangesSummary': getPendingChangesSummary(),
+        'localStats': stats['local'],
+        'syncStats': stats['sync'],
+      };
     } catch (e) {
-      throw AppError.fromException(e);
+      return {
+        'isOnline': _isOnline,
+        'isSyncing': _isSyncing,
+        'lastSyncTime': _lastSyncTime?.toIso8601String(),
+        'pendingChangesCount': _pendingChangesCount,
+        'hasConflicts': hasConflicts,
+        'syncStatusText': getSyncStatusText(),
+        'syncStatusIcon': getSyncStatusIcon(),
+        'syncStatusColor': getSyncStatusColor(),
+        'pendingChangesSummary': getPendingChangesSummary(),
+        'error': e.toString(),
+      };
     }
   }
 
-  /// Obtener productos
-  Future<List<Product>> getProducts(String organizationId) async {
-    if (!_isInitialized) await initialize();
+  /// Verificar si la sincronización está funcionando correctamente
+  bool get isSyncHealthy {
+    if (!_isOnline) return true; // Offline es normal
     
+    if (_lastSyncTime == null) return false;
+    
+    final now = DateTime.now();
+    final difference = now.difference(_lastSyncTime!);
+    
+    // Considerar no saludable si no se sincronizó en más de 5 minutos
+    return difference.inMinutes < 5;
+  }
+
+  /// Obtener recomendaciones de sincronización
+  String getSyncRecommendations() {
+    if (!_isOnline) {
+      return 'Conecta a internet para sincronizar tus datos';
+    }
+    
+    if (_pendingChangesCount > 10) {
+      return 'Muchos cambios pendientes. Considera sincronizar manualmente';
+    }
+    
+    if (!isSyncHealthy) {
+      return 'La sincronización parece tener problemas. Revisa tu conexión';
+    }
+    
+    return 'La sincronización funciona correctamente';
+  }
+
+  /// Obtener información detallada del estado
+  Future<Map<String, dynamic>> getDetailedStatus() async {
     try {
-      return await _syncService.getProducts(organizationId);
+      final stats = await _hybridService.getStats();
+      
+      return {
+        'connectivity': {
+          'isOnline': _isOnline,
+          'lastSync': _lastSyncTime?.toIso8601String(),
+        },
+        'sync': {
+          'isSyncing': _isSyncing,
+          'pendingOperations': _pendingChangesCount,
+          'isHealthy': isSyncHealthy,
+        },
+        'database': {
+          'local': stats['local'],
+          'sync': stats['sync'],
+        },
+        'recommendations': getSyncRecommendations(),
+      };
     } catch (e) {
-      throw AppError.fromException(e);
+      return {
+        'error': e.toString(),
+        'connectivity': {
+          'isOnline': _isOnline,
+          'lastSync': _lastSyncTime?.toIso8601String(),
+        },
+        'sync': {
+          'isSyncing': _isSyncing,
+          'pendingOperations': _pendingChangesCount,
+          'isHealthy': isSyncHealthy,
+        },
+      };
     }
   }
 
-  // ===== MÉTODOS PARA CATEGORÍAS =====
-
-  /// Crear categoría
-  Future<String> createCategory(app_category.Category category) async {
-    if (!_isInitialized) await initialize();
-    
-    try {
-      final categoryId = await _syncService.createCategory(category);
-      await _loadStorageStats();
-      return categoryId;
-    } catch (e) {
-      throw AppError.fromException(e);
-    }
-  }
-
-  /// Obtener categorías
-  Future<List<app_category.Category>> getCategories(String organizationId) async {
-    if (!_isInitialized) await initialize();
-    
-    try {
-      return await _syncService.getCategories(organizationId);
-    } catch (e) {
-      throw AppError.fromException(e);
-    }
-  }
-
-  // ===== MÉTODOS PARA VENTAS =====
-
-  /// Crear venta
-  Future<String> createSale(Sale sale) async {
-    if (!_isInitialized) await initialize();
-    
-    try {
-      final saleId = await _syncService.createSale(sale);
-      await _loadStorageStats();
-      return saleId;
-    } catch (e) {
-      throw AppError.fromException(e);
-    }
-  }
-
-  /// Obtener ventas
-  Future<List<Sale>> getSales(String organizationId) async {
-    if (!_isInitialized) await initialize();
-    
-    try {
-      return await _syncService.getSales(organizationId);
-    } catch (e) {
-      throw AppError.fromException(e);
-    }
-  }
-
-  // ===== MÉTODOS PARA MOVIMIENTOS =====
-
-  /// Crear movimiento
-  Future<String> createMovement(Movement movement) async {
-    if (!_isInitialized) await initialize();
-    
-    try {
-      final movementId = await _syncService.createMovement(movement);
-      await _loadStorageStats();
-      return movementId;
-    } catch (e) {
-      throw AppError.fromException(e);
-    }
-  }
-
-  /// Obtener movimientos
-  Future<List<Movement>> getMovements(String organizationId) async {
-    if (!_isInitialized) await initialize();
-    
-    try {
-      return await _syncService.getMovements(organizationId);
-    } catch (e) {
-      throw AppError.fromException(e);
-    }
-  }
-
-  // ===== MÉTODOS PARA ORGANIZACIÓN =====
-
-  /// Obtener organización
-  Future<Organization?> getOrganization() async {
-    if (!_isInitialized) await initialize();
-    
-    try {
-      return await _syncService.getOrganization();
-    } catch (e) {
-      throw AppError.fromException(e);
-    }
-  }
-
-  /// Guardar organización
-  Future<void> saveOrganization(Organization organization) async {
-    if (!_isInitialized) await initialize();
-    
-    try {
-      await _syncService.saveOrganization(organization);
-      await _loadStorageStats();
-    } catch (e) {
-      throw AppError.fromException(e);
-    }
-  }
-
-  // ===== MÉTODOS PARA PERFIL DE USUARIO =====
-
-  /// Obtener perfil de usuario
-  Future<UserProfile?> getUserProfile() async {
-    if (!_isInitialized) await initialize();
-    
-    try {
-      return await _syncService.getUserProfile();
-    } catch (e) {
-      throw AppError.fromException(e);
-    }
-  }
-
-  /// Guardar perfil de usuario
-  Future<void> saveUserProfile(UserProfile profile) async {
-    if (!_isInitialized) await initialize();
-    
-    try {
-      await _syncService.saveUserProfile(profile);
-      await _loadStorageStats();
-    } catch (e) {
-      throw AppError.fromException(e);
-    }
-  }
-
-  // ===== MÉTODOS DE UTILIDAD =====
-
-  /// Actualizar estadísticas de almacenamiento
-  Future<void> refreshStorageStats() async {
-    await _loadStorageStats();
-  }
-
-  /// Limpiar todos los datos locales
-  Future<void> clearAllData() async {
-    if (!_isInitialized) await initialize();
-    
-    try {
-      await _syncService.clearAllData();
-      await _loadStorageStats();
-    } catch (e) {
-      throw AppError.fromException(e);
-    }
-  }
-
-  /// Verificar si hay datos locales
-  bool get hasLocalData {
-    return _storageStats.values.any((count) => count > 0);
-  }
-
-  /// Obtener total de elementos almacenados
-  int get totalStoredItems {
-    return _storageStats.values.fold(0, (sum, count) => sum + count);
-  }
-
-  /// Obtener porcentaje de uso del almacenamiento
-  double get storageUsagePercentage {
-    final total = totalStoredItems;
-    if (total == 0) return 0.0;
-    
-    // Estimación: cada elemento ocupa aproximadamente 1KB
-    final estimatedSizeKB = total * 1;
-    const maxSizeKB = 50 * 1024; // 50MB límite estimado
-    
-    return (estimatedSizeKB / maxSizeKB).clamp(0.0, 1.0);
-  }
-
-  /// Obtener texto de estado de almacenamiento
-  String get storageStatusText {
-    final total = totalStoredItems;
-    final percentage = (storageUsagePercentage * 100).toStringAsFixed(1);
-    
-    if (total == 0) return 'Sin datos locales';
-    return '$total elementos ($percentage% usado)';
-  }
-
-  /// Disposal
+  /// Limpiar recursos
   @override
   void dispose() {
-    _syncService.dispose();
+    _statusTimer?.cancel();
     super.dispose();
   }
 } 

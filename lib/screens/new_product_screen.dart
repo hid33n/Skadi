@@ -5,7 +5,6 @@ import '../services/category_service.dart';
 import '../models/product.dart';
 import '../models/category.dart';
 import '../services/auth_service.dart';
-import '../viewmodels/organization_viewmodel.dart';
 import '../utils/error_handler.dart';
 
 class NewProductScreen extends StatefulWidget {
@@ -51,15 +50,10 @@ class _NewProductScreenState extends State<NewProductScreen> {
     });
 
     try {
-      final organizationViewModel = context.read<OrganizationViewModel>();
-      final organizationId = organizationViewModel.currentOrganization?.id;
-      
-      if (organizationId != null) {
-        final categories = await context.read<CategoryService>().getCategories(organizationId);
-        setState(() {
-          _categories = categories;
-        });
-      }
+      final categories = await context.read<CategoryService>().getCategories();
+      setState(() {
+        _categories = categories;
+      });
     } catch (e) {
       if (mounted) {
         context.showError(e);
@@ -78,14 +72,6 @@ class _NewProductScreenState extends State<NewProductScreen> {
     
     if (_selectedCategoryId == null) {
       context.showError('Por favor seleccione una categoría');
-      return;
-    }
-
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId == null) {
-      context.showError('No se pudo obtener la información de la organización');
       return;
     }
 
@@ -111,7 +97,6 @@ class _NewProductScreenState extends State<NewProductScreen> {
         categoryId: _selectedCategoryId!,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        organizationId: organizationId,
       );
 
       await context.read<FirestoreService>().addProduct(product);

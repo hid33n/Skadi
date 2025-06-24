@@ -18,7 +18,6 @@ class UserProfile {
   final String? phone;
   final String? avatarUrl;
   final UserRole role;
-  final String organizationId;
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isActive;
@@ -33,7 +32,6 @@ class UserProfile {
     this.phone,
     this.avatarUrl,
     required this.role,
-    required this.organizationId,
     required this.createdAt,
     required this.updatedAt,
     this.isActive = true,
@@ -53,7 +51,6 @@ class UserProfile {
       'phone': phone,
       'avatarUrl': avatarUrl,
       'role': role.name,
-      'organizationId': organizationId,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'isActive': isActive,
@@ -74,7 +71,6 @@ class UserProfile {
         (role) => role.name == map['role'],
         orElse: () => UserRole.viewer,
       ),
-      organizationId: map['organizationId'] as String,
       createdAt: DateTime.parse(map['createdAt'] as String),
       updatedAt: DateTime.parse(map['updatedAt'] as String),
       isActive: map['isActive'] as bool? ?? true,
@@ -91,7 +87,6 @@ class UserProfile {
     String? phone,
     String? avatarUrl,
     UserRole? role,
-    String? organizationId,
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isActive,
@@ -106,7 +101,6 @@ class UserProfile {
       phone: phone ?? this.phone,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       role: role ?? this.role,
-      organizationId: organizationId ?? this.organizationId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isActive: isActive ?? this.isActive,
@@ -117,7 +111,7 @@ class UserProfile {
 
   @override
   String toString() {
-    return 'UserProfile(id: $id, email: $email, firstName: $firstName, lastName: $lastName, phone: $phone, avatarUrl: $avatarUrl, role: $role, organizationId: $organizationId, createdAt: $createdAt, updatedAt: $updatedAt, isActive: $isActive, preferences: $preferences, permissions: $permissions)';
+    return 'UserProfile(id: $id, email: $email, firstName: $firstName, lastName: $lastName, phone: $phone, avatarUrl: $avatarUrl, role: $role, createdAt: $createdAt, updatedAt: $updatedAt, isActive: $isActive, preferences: $preferences, permissions: $permissions)';
   }
 
   @override
@@ -131,7 +125,6 @@ class UserProfile {
         other.phone == phone &&
         other.avatarUrl == avatarUrl &&
         other.role == role &&
-        other.organizationId == organizationId &&
         other.createdAt == createdAt &&
         other.updatedAt == updatedAt &&
         other.isActive == isActive &&
@@ -148,7 +141,6 @@ class UserProfile {
         phone.hashCode ^
         avatarUrl.hashCode ^
         role.hashCode ^
-        organizationId.hashCode ^
         createdAt.hashCode ^
         updatedAt.hashCode ^
         isActive.hashCode ^

@@ -1,190 +1,151 @@
 import 'package:flutter/material.dart';
-import '../../theme/animations.dart';
+import 'dashboard_card.dart';
+import 'barcode_quick_action.dart';
 import '../../theme/responsive.dart';
 
-class QuickAction {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback onTap;
-  final Color? color;
-
-  const QuickAction({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
-    this.color,
-  });
-}
-
 class QuickActions extends StatelessWidget {
-  final List<QuickAction> actions;
-  final bool isLoading;
-  final String? errorMessage;
-  final VoidCallback? onRetry;
-
-  const QuickActions({
-    Key? key,
-    required this.actions,
-    this.isLoading = false,
-    this.errorMessage,
-    this.onRetry,
-  }) : super(key: key);
+  const QuickActions({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return AppAnimations.combinedAnimation(
-      child: Card(
-        child: Padding(
-          padding: Responsive.getResponsivePadding(context),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Acciones Rápidas',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              if (isLoading)
-                const Center(
-                  child: CircularProgressIndicator(),
-                )
-              else if (errorMessage != null)
-                Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        errorMessage!,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                      ),
-                      if (onRetry != null)
-                        TextButton(
-                          onPressed: onRetry,
-                          child: const Text('Reintentar'),
-                        ),
-                    ],
+    return DashboardCard(
+      title: 'Acciones Rápidas',
+      icon: Icons.flash_on,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 600) {
+            return Column(
+              children: [
+                if (Responsive.isMobile(context))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: BarcodeQuickAction(),
                   ),
-                )
-              else
-                Responsive.responsiveBuilder(
-                  context: context,
-                  mobile: _buildMobileLayout(context),
-                  tablet: _buildTabletLayout(context),
-                  desktop: _buildDesktopLayout(context),
-                ),
+                _buildActionRow(context, [
+                  _buildActionButton(
+                    context,
+                    'Nueva Venta',
+                    Icons.add_shopping_cart,
+                    Colors.green,
+                    () => Navigator.pushNamed(context, '/add-sale'),
+                  ),
+                  _buildActionButton(
+                    context,
+                    'Nuevo Producto',
+                    Icons.add_box,
+                    Colors.blue,
+                    () => Navigator.pushNamed(context, '/add-product'),
+                  ),
+                ]),
+                const SizedBox(height: 16),
+                _buildActionRow(context, [
+                  _buildActionButton(
+                    context,
+                    'Ver Productos',
+                    Icons.inventory,
+                    Colors.orange,
+                    () => Navigator.pushNamed(context, '/products'),
+                  ),
+                  _buildActionButton(
+                    context,
+                    'Ver Ventas',
+                    Icons.receipt_long,
+                    Colors.purple,
+                    () => Navigator.pushNamed(context, '/sales'),
+                  ),
+                ]),
+              ],
+            );
+          }
+          
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildActionButton(
+                context,
+                'Nueva Venta',
+                Icons.add_shopping_cart,
+                Colors.green,
+                () => Navigator.pushNamed(context, '/add-sale'),
+              ),
+              _buildActionButton(
+                context,
+                'Nuevo Producto',
+                Icons.add_box,
+                Colors.blue,
+                () => Navigator.pushNamed(context, '/add-product'),
+              ),
+              _buildActionButton(
+                context,
+                'Ver Productos',
+                Icons.inventory,
+                Colors.orange,
+                () => Navigator.pushNamed(context, '/products'),
+              ),
+              _buildActionButton(
+                context,
+                'Ver Ventas',
+                Icons.receipt_long,
+                Colors.purple,
+                () => Navigator.pushNamed(context, '/sales'),
+              ),
             ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildMobileLayout(BuildContext context) {
-    return Column(
+  Widget _buildActionRow(BuildContext context, List<Widget> actions) {
+    return Row(
       children: actions.map((action) {
-        return Column(
-          children: [
-            _buildActionItem(context, action),
-            if (action != actions.last) const SizedBox(height: 16),
-          ],
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildTabletLayout(BuildContext context) {
-    return Wrap(
-      spacing: 16,
-      runSpacing: 16,
-      children: actions.map((action) {
-        return SizedBox(
-          width: (MediaQuery.of(context).size.width - 64) / 2,
-          child: _buildActionItem(context, action),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildDesktopLayout(BuildContext context) {
-    return Wrap(
-      spacing: 16,
-      runSpacing: 16,
-      children: actions.map((action) {
-        return SizedBox(
-          width: (MediaQuery.of(context).size.width - 96) / 3,
-          child: _buildActionItem(context, action),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildActionItem(BuildContext context, QuickAction action) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: action.onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: (action.color ?? Theme.of(context).colorScheme.primary)
-                .withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: (action.color ?? Theme.of(context).colorScheme.primary)
-                  .withOpacity(0.2),
-            ),
-          ),
+        final isLast = action == actions.last;
+        return Expanded(
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: (action.color ?? Theme.of(context).colorScheme.primary)
-                      .withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  action.icon,
-                  color: action.color ?? Theme.of(context).colorScheme.primary,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      action.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: action.color ??
-                                Theme.of(context).colorScheme.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      action.subtitle,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface
-                                .withOpacity(0.7),
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.arrow_forward_ios,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                size: 16,
-              ),
+              Expanded(child: action),
+              if (!isLast) const SizedBox(width: 16),
             ],
           ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildActionButton(
+    BuildContext context,
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onPressed,
+  ) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: color.withOpacity(0.3), width: 1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: color,
+              size: 32,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.white70,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );

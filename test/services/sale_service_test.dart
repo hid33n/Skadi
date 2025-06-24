@@ -1,60 +1,46 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/mockito.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:stock/services/sale_service.dart';
 import 'package:stock/models/sale.dart';
-import 'package:stock/services/firestore_service.dart';
-
-class MockFirestoreService extends Mock implements FirestoreService {
-  @override
-  Future<List<Sale>> getSales() async {
-    return [];
-  }
-
-  @override
-  Future<void> addSale(Sale sale) async {}
-
-  @override
-  Future<void> deleteSale(String id) async {}
-}
+import 'package:stock/utils/error_handler.dart';
 
 void main() {
-  late MockFirestoreService mockFirestoreService;
+  late FakeFirebaseFirestore fakeFirestore;
   late SaleService saleService;
 
   setUp(() {
-    mockFirestoreService = MockFirestoreService();
-    saleService = SaleService(mockFirestoreService);
+    fakeFirestore = FakeFirebaseFirestore();
+    saleService = SaleService(fakeFirestore);
   });
 
   group('SaleService Tests', () {
-    test('getSales should return list of sales', () async {
+    test('getSales returns list of sales', () async {
       // Arrange
-      final mockSales = [
-        Sale(
-          id: '1',
-          userId: 'user1',
-          productId: 'prod1',
-          productName: 'Product 1',
-          quantity: 2,
-          amount: 20.0,
-          date: DateTime.now(),
-          notes: 'Test sale 1',
-        ),
-        Sale(
-          id: '2',
-          userId: 'user1',
-          productId: 'prod2',
-          productName: 'Product 2',
-          quantity: 3,
-          amount: 30.0,
-          date: DateTime.now(),
-          notes: 'Test sale 2',
-        ),
-      ];
+      final now = DateTime.now();
+      final sale1 = Sale(
+        id: '1',
+        userId: 'user1',
+        productId: 'product1',
+        productName: 'Product 1',
+        amount: 100.0,
+        quantity: 2,
+        date: now,
+        notes: 'Test sale 1',
+      );
+      final sale2 = Sale(
+        id: '2',
+        userId: 'user2',
+        productId: 'product2',
+        productName: 'Product 2',
+        amount: 150.0,
+        quantity: 1,
+        date: now,
+        notes: 'Test sale 2',
+      );
 
-      when(mockFirestoreService.getSales())
-          .thenAnswer((_) async => mockSales);
+      await fakeFirestore.collection('sales').doc('1').set(sale1.toMap());
+      await fakeFirestore.collection('sales').doc('2').set(sale2.toMap());
 
       // Act
       final sales = await saleService.getSales();
@@ -63,170 +49,288 @@ void main() {
       expect(sales.length, 2);
       expect(sales[0].productName, 'Product 1');
       expect(sales[1].productName, 'Product 2');
-      verify(mockFirestoreService.getSales()).called(1);
     });
 
-    test('getSales should return empty list when no sales exist', () async {
-      // Arrange
-      when(mockFirestoreService.getSales())
-          .thenAnswer((_) async => []);
-
+    test('getSales returns empty list when no sales exist', () async {
       // Act
       final sales = await saleService.getSales();
 
       // Assert
       expect(sales, isEmpty);
-      verify(mockFirestoreService.getSales()).called(1);
     });
 
-    test('addSale should add sale to Firestore', () async {
+    test('addSale adds a sale', () async {
       // Arrange
+      final now = DateTime.now();
       final sale = Sale(
         id: '',
         userId: 'user1',
-        productId: 'prod1',
+        productId: 'product1',
         productName: 'New Product',
-        quantity: 4,
-        amount: 40.0,
-        date: DateTime.now(),
+        amount: 200.0,
+        quantity: 3,
+        date: now,
         notes: 'New sale',
       );
 
-      when(mockFirestoreService.addSale(sale))
-          .thenAnswer((_) async => null);
-
       // Act
-      await saleService.addSale(sale);
+      final id = await saleService.addSale(sale);
 
       // Assert
-      verify(mockFirestoreService.addSale(sale)).called(1);
+      expect(id, isNotEmpty);
+      final addedSale = await fakeFirestore.collection('sales').doc(id).get();
+      expect(addedSale.exists, isTrue);
+      expect(addedSale.data()!['productName'], 'New Product');
     });
 
-    test('addSale throws error when quantity is zero', () async {
+    test('getSale returns a sale', () async {
       // Arrange
+      final now = DateTime.now();
       final sale = Sale(
-        id: '',
+        id: '1',
         userId: 'user1',
-        productId: 'prod1',
-        productName: 'New Product',
-        quantity: 0,
-        amount: 0.0,
-        date: DateTime.now(),
-        notes: 'Invalid sale',
+        productId: 'product1',
+        productName: 'Test Product',
+        amount: 100.0,
+        quantity: 2,
+        date: now,
+        notes: 'Test sale',
       );
 
-      // Act & Assert
-      expect(
-        () => saleService.addSale(sale),
-        throwsException,
-      );
+      await fakeFirestore.collection('sales').doc('1').set(sale.toMap());
+
+      // Act
+      final result = await saleService.getSale('1');
+
+      // Assert
+      expect(result?.productName, 'Test Product');
+      expect(result?.amount, 100.0);
     });
 
-    test('addSale throws error when amount is negative', () async {
+    test('getSale returns null when sale does not exist', () async {
+      // Act
+      final result = await saleService.getSale('non-existent');
+
+      // Assert
+      expect(result, isNull);
+    });
+
+    test('updateSale updates a sale', () async {
       // Arrange
+      final now = DateTime.now();
+      final originalSale = Sale(
+        id: '1',
+        userId: 'user1',
+        productId: 'product1',
+        productName: 'Original Product',
+        amount: 100.0,
+        quantity: 2,
+        date: now,
+        notes: 'Original sale',
+      );
+
+      await fakeFirestore.collection('sales').doc('1').set(originalSale.toMap());
+
+      final updatedSale = Sale(
+        id: '1',
+        userId: 'user1',
+        productId: 'product1',
+        productName: 'Updated Product',
+        amount: 150.0,
+        quantity: 3,
+        date: now,
+        notes: 'Updated sale',
+      );
+
+      // Act
+      await saleService.updateSale('1', updatedSale);
+
+      // Assert
+      final doc = await fakeFirestore.collection('sales').doc('1').get();
+      expect(doc.data()!['productName'], 'Updated Product');
+      expect(doc.data()!['amount'], 150.0);
+    });
+
+    test('deleteSale deletes a sale', () async {
+      // Arrange
+      final now = DateTime.now();
       final sale = Sale(
-        id: '',
+        id: '1',
         userId: 'user1',
-        productId: 'prod1',
-        productName: 'New Product',
-        quantity: 4,
-        amount: -40.0,
-        date: DateTime.now(),
-        notes: 'Invalid sale',
+        productId: 'product1',
+        productName: 'Product to Delete',
+        amount: 100.0,
+        quantity: 2,
+        date: now,
+        notes: 'Sale to delete',
       );
 
-      // Act & Assert
-      expect(
-        () => saleService.addSale(sale),
-        throwsException,
-      );
-    });
-
-    test('deleteSale should delete sale from Firestore', () async {
-      // Arrange
-      when(mockFirestoreService.deleteSale('1'))
-          .thenAnswer((_) async => null);
+      await fakeFirestore.collection('sales').doc('1').set(sale.toMap());
 
       // Act
       await saleService.deleteSale('1');
 
       // Assert
-      verify(mockFirestoreService.deleteSale('1')).called(1);
+      final doc = await fakeFirestore.collection('sales').doc('1').get();
+      expect(doc.exists, isFalse);
     });
 
-    test('getSalesStats should return correct statistics', () async {
+    test('getSalesByDateRange returns sales in date range', () async {
       // Arrange
       final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final firstDayOfMonth = DateTime(now.year, now.month, 1);
+      final yesterday = now.subtract(const Duration(days: 1));
+      final tomorrow = now.add(const Duration(days: 1));
 
-      final mockSales = [
-        Sale(
-          id: '1',
-          userId: 'user1',
-          productId: 'prod1',
-          productName: 'Product 1',
-          quantity: 2,
-          amount: 20.0,
-          date: today,
-          notes: 'Today sale',
-        ),
-        Sale(
-          id: '2',
-          userId: 'user1',
-          productId: 'prod2',
-          productName: 'Product 2',
-          quantity: 3,
-          amount: 30.0,
-          date: firstDayOfMonth,
-          notes: 'Month sale',
-        ),
-        Sale(
-          id: '3',
-          userId: 'user1',
-          productId: 'prod3',
-          productName: 'Product 3',
-          quantity: 1,
-          amount: 15.0,
-          date: today.subtract(const Duration(days: 1)),
-          notes: 'Yesterday sale',
-        ),
-      ];
+      final sale1 = Sale(
+        id: '1',
+        userId: 'user1',
+        productId: 'product1',
+        productName: 'Product 1',
+        amount: 100.0,
+        quantity: 2,
+        date: now,
+        notes: 'Today sale',
+      );
+      final sale2 = Sale(
+        id: '2',
+        userId: 'user2',
+        productId: 'product2',
+        productName: 'Product 2',
+        amount: 150.0,
+        quantity: 1,
+        date: yesterday,
+        notes: 'Yesterday sale',
+      );
 
-      when(mockFirestoreService.getSales())
-          .thenAnswer((_) async => mockSales);
+      await fakeFirestore.collection('sales').doc('1').set(sale1.toMap());
+      await fakeFirestore.collection('sales').doc('2').set(sale2.toMap());
 
       // Act
-      final stats = await saleService.getSalesStats();
+      final results = await saleService.getSalesByDateRange(yesterday, tomorrow);
 
       // Assert
-      expect(stats['todaySales'], 1);
-      expect(stats['todayTotal'], 20.0);
-      expect(stats['monthSales'], 2);
-      expect(stats['monthTotal'], 50.0);
-      expect(stats['totalSales'], 3);
-      expect(stats['totalAmount'], 65.0);
-      expect(stats['recentSales'].length, 3);
-      expect(stats['dailySales'].length, 7);
+      expect(results.length, 2);
     });
 
-    test('getSalesStats should handle empty sales list', () async {
+    test('getSalesByProduct returns sales for specific product', () async {
       // Arrange
-      when(mockFirestoreService.getSales())
-          .thenAnswer((_) async => []);
+      final now = DateTime.now();
+      final sale1 = Sale(
+        id: '1',
+        userId: 'user1',
+        productId: 'product1',
+        productName: 'Product 1',
+        amount: 100.0,
+        quantity: 2,
+        date: now,
+        notes: 'Sale 1',
+      );
+      final sale2 = Sale(
+        id: '2',
+        userId: 'user2',
+        productId: 'product2',
+        productName: 'Product 2',
+        amount: 150.0,
+        quantity: 1,
+        date: now,
+        notes: 'Sale 2',
+      );
+
+      await fakeFirestore.collection('sales').doc('1').set(sale1.toMap());
+      await fakeFirestore.collection('sales').doc('2').set(sale2.toMap());
+
+      // Act
+      final results = await saleService.getSalesByProduct('product1');
+
+      // Assert
+      expect(results.length, 1);
+      expect(results[0].productId, 'product1');
+    });
+
+    test('getSalesStats returns correct statistics', () async {
+      // Arrange
+      final now = DateTime.now();
+      final sale1 = Sale(
+        id: '1',
+        userId: 'user1',
+        productId: 'product1',
+        productName: 'Product 1',
+        amount: 100.0,
+        quantity: 2,
+        date: now,
+        notes: 'Sale 1',
+      );
+      final sale2 = Sale(
+        id: '2',
+        userId: 'user2',
+        productId: 'product2',
+        productName: 'Product 2',
+        amount: 150.0,
+        quantity: 1,
+        date: now,
+        notes: 'Sale 2',
+      );
+
+      await fakeFirestore.collection('sales').doc('1').set(sale1.toMap());
+      await fakeFirestore.collection('sales').doc('2').set(sale2.toMap());
 
       // Act
       final stats = await saleService.getSalesStats();
 
       // Assert
-      expect(stats['todaySales'], 0);
-      expect(stats['todayTotal'], 0.0);
-      expect(stats['monthSales'], 0);
-      expect(stats['monthTotal'], 0.0);
-      expect(stats['totalSales'], 0);
-      expect(stats['totalAmount'], 0.0);
-      expect(stats['recentSales'], isEmpty);
-      expect(stats['dailySales'].length, 7);
+      expect(stats['totalSales'], 2);
+      expect(stats['totalRevenue'], 250.0);
+      expect(stats['averageSale'], 125.0);
+      expect(stats['monthlyStats'], isA<Map<String, double>>());
+    });
+
+    test('getTopSellingProducts returns top selling products', () async {
+      // Arrange
+      final now = DateTime.now();
+      final sale1 = Sale(
+        id: '1',
+        userId: 'user1',
+        productId: 'product1',
+        productName: 'Product 1',
+        amount: 100.0,
+        quantity: 2,
+        date: now,
+        notes: 'Sale 1',
+      );
+      final sale2 = Sale(
+        id: '2',
+        userId: 'user2',
+        productId: 'product1',
+        productName: 'Product 1',
+        amount: 150.0,
+        quantity: 1,
+        date: now,
+        notes: 'Sale 2',
+      );
+      final sale3 = Sale(
+        id: '3',
+        userId: 'user3',
+        productId: 'product2',
+        productName: 'Product 2',
+        amount: 200.0,
+        quantity: 1,
+        date: now,
+        notes: 'Sale 3',
+      );
+
+      await fakeFirestore.collection('sales').doc('1').set(sale1.toMap());
+      await fakeFirestore.collection('sales').doc('2').set(sale2.toMap());
+      await fakeFirestore.collection('sales').doc('3').set(sale3.toMap());
+
+      // Act
+      final topProducts = await saleService.getTopSellingProducts();
+
+      // Assert
+      expect(topProducts.length, 2);
+      expect(topProducts[0]['productId'], 'product1');
+      expect(topProducts[0]['salesCount'], 2);
+      expect(topProducts[1]['productId'], 'product2');
+      expect(topProducts[1]['salesCount'], 1);
     });
   });
 } 

@@ -6,25 +6,26 @@ import '../models/movement.dart';
 import 'auth_service.dart';
 
 class FirestoreService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
   final AuthService _authService;
 
-  FirestoreService(this._authService);
+  FirestoreService(this._authService, [FirebaseFirestore? firestore]) 
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   String get _userId => _authService.currentUser?.uid ?? '';
 
-  // Referencias a las subcolecciones
+  // Referencias a las subcolecciones - Cambiado de 'users' a 'pm'
   CollectionReference get _userProductsRef => 
-      _firestore.collection('users').doc(_userId).collection('products');
+      _firestore.collection('pm').doc(_userId).collection('products');
   
   CollectionReference get _userCategoriesRef => 
-      _firestore.collection('users').doc(_userId).collection('categories');
+      _firestore.collection('pm').doc(_userId).collection('categories');
   
   CollectionReference get _userSalesRef => 
-      _firestore.collection('users').doc(_userId).collection('sales');
+      _firestore.collection('pm').doc(_userId).collection('sales');
   
   CollectionReference get _userMovementsRef => 
-      _firestore.collection('users').doc(_userId).collection('movements');
+      _firestore.collection('pm').doc(_userId).collection('movements');
 
   // Métodos para Productos
   Future<List<Product>> getProducts() async {

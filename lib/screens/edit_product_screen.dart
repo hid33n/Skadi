@@ -4,7 +4,6 @@ import '../models/product.dart';
 import '../models/category.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
-import '../viewmodels/organization_viewmodel.dart';
 import '../utils/error_handler.dart';
 
 class EditProductScreen extends StatefulWidget {
@@ -48,48 +47,34 @@ class _EditProductScreenState extends State<EditProductScreen> {
   }
 
   Future<void> _loadData() async {
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
+    final categoryViewModel = context.read<CategoryViewModel>();
+    await categoryViewModel.loadCategories();
     
-    if (organizationId != null) {
-      final categoryViewModel = context.read<CategoryViewModel>();
-      await categoryViewModel.loadCategories(organizationId);
-      
-      setState(() {
-        _selectedCategory = categoryViewModel.categories.firstWhere(
-          (c) => c.id == widget.product.categoryId,
-          orElse: () => categoryViewModel.categories.isNotEmpty 
-              ? categoryViewModel.categories.first 
-              : Category(
-                  id: '',
-                  name: 'Sin categoría',
-                  description: 'Categoría por defecto',
-                  organizationId: organizationId,
-                  createdAt: DateTime.now(),
-                  updatedAt: DateTime.now(),
-                ),
-        );
-        _nameController.text = widget.product.name;
-        _descriptionController.text = widget.product.description;
-        _priceController.text = widget.product.price.toString();
-        _stockController.text = widget.product.stock.toString();
-        _minStockController.text = widget.product.minStock.toString();
-      });
-    }
+    setState(() {
+      _selectedCategory = categoryViewModel.categories.firstWhere(
+        (c) => c.id == widget.product.categoryId,
+        orElse: () => categoryViewModel.categories.isNotEmpty 
+            ? categoryViewModel.categories.first 
+            : Category(
+                id: '',
+                name: 'Sin categoría',
+                description: 'Categoría por defecto',
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              ),
+      );
+      _nameController.text = widget.product.name;
+      _descriptionController.text = widget.product.description;
+      _priceController.text = widget.product.price.toString();
+      _stockController.text = widget.product.stock.toString();
+      _minStockController.text = widget.product.minStock.toString();
+    });
   }
 
   Future<void> _saveProduct() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCategory == null) {
       context.showError('Por favor selecciona una categoría');
-      return;
-    }
-
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId == null) {
-      context.showError('No se pudo obtener la información de la organización');
       return;
     }
 
@@ -171,7 +156,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    categoryVM.error!.message,
+                    categoryVM.error!,
                     style: const TextStyle(fontSize: 16),
                     textAlign: TextAlign.center,
                   ),

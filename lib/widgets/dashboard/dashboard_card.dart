@@ -28,10 +28,15 @@ class DashboardCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: Padding(
+        child: Container(
+          constraints: const BoxConstraints(
+            minHeight: 200,
+            maxHeight: 400,
+          ),
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -43,7 +48,7 @@ class DashboardCard extends StatelessWidget {
                           Container(
                             margin: const EdgeInsets.only(right: 8),
                             decoration: BoxDecoration(
-                              color: (iconColor ?? Theme.of(context).primaryColor).withOpacity(0.12),
+                              color: (iconColor ?? Theme.of(context).primaryColor).withValues(alpha: 0.12),
                               shape: BoxShape.circle,
                             ),
                             padding: const EdgeInsets.all(6),
@@ -74,7 +79,7 @@ class DashboardCard extends StatelessWidget {
                 ],
               ),
               const Divider(),
-              Expanded(
+              Flexible(
                 child: isLoading
                     ? const Center(
                         child: CircularProgressIndicator(),

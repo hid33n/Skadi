@@ -45,6 +45,23 @@ dependencies:
   firebase_auth: 
   cloud_firestore: 
   firebase_storage: 
+  
+  # Base de datos local - Hive (reemplaza Drift)
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  
+  # APIs gratuitas para datos externos
+  http: ^1.1.0
+  dio: ^5.3.2
+  
+  # Conectividad para sincronización
+  connectivity_plus: ^5.0.2
+  
+  # Escaneo de códigos de barras (solo para móvil)
+  camera: ^0.10.5+9
+  mobile_scanner: ^3.5.6
+  permission_handler: ^11.1.0
+  
   google_fonts: ^6.1.0
   flutter_svg: ^2.0.9
   cached_network_image: ^3.3.0
@@ -68,6 +85,9 @@ dev_dependencies:
     sdk: flutter
   firebase_auth_mocks: 
   fake_cloud_firestore: ^3.1.0
+  
+  # Generador de código para Hive
+  hive_generator: ^2.0.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

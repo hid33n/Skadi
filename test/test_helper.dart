@@ -3,15 +3,115 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:stock/models/movement.dart';
 import 'package:stock/models/product.dart';
 import 'package:stock/models/sale.dart';
 import 'package:stock/models/category.dart';
 import 'package:stock/services/firestore_service.dart';
+import 'package:stock/services/auth_service.dart';
 
 Future<void> setupFirebaseForTesting() async {
   TestWidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+}
+
+// Configurar Firebase para usar el emulador en pruebas
+Future<void> setupFirebaseEmulator() async {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  
+  // Configurar Firestore para usar el emulador
+  FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
+}
+
+class MockAuthService extends Mock implements AuthService {
+  User? _currentUser;
+  bool _isLoading = false;
+  String? _error;
+
+  @override
+  User? get currentUser => _currentUser;
+
+  @override
+  Stream<User?> get authStateChanges => Stream.value(_currentUser);
+
+  @override
+  Future<UserCredential> registerWithEmailAndPassword(
+      String email, String password, String username) async {
+    if (email.isEmpty) {
+      throw 'El email es requerido';
+    }
+    if (password.isEmpty) {
+      throw 'La contraseña es requerida';
+    }
+    if (username.isEmpty) {
+      throw 'El nombre de usuario es requerido';
+    }
+    if (password.length < 6) {
+      throw 'La contraseña debe tener al menos 6 caracteres';
+    }
+    if (username.length < 3) {
+      throw 'El nombre de usuario debe tener al menos 3 caracteres';
+    }
+    if (!email.contains('@')) {
+      throw 'El formato del email no es válido';
+    }
+
+    // Simular un usuario creado exitosamente
+    return MockUserCredential();
+  }
+
+  @override
+  Future<UserCredential> signInWithEmailOrUsername(
+      String emailOrUsername, String password) async {
+    if (emailOrUsername.isEmpty) {
+      throw 'El email o nombre de usuario es requerido';
+    }
+    if (password.isEmpty) {
+      throw 'La contraseña es requerida';
+    }
+    // Si contiene @, debe ser un email válido
+    if (emailOrUsername.contains('@') && !emailOrUsername.contains('.')) {
+      throw 'El formato del email no es válido';
+    }
+
+    // Simular un inicio de sesión exitoso
+    return MockUserCredential();
+  }
+
+  @override
+  Future<void> signOut() async {
+    _currentUser = null;
+  }
+
+  @override
+  Future<void> resetPassword(String email) async {
+    if (email.isEmpty) {
+      throw 'El email es requerido';
+    }
+    if (!email.contains('@')) {
+      throw 'El formato del email no es válido';
+    }
+  }
+
+  @override
+  Future<void> updateUserProfile(String username) async {
+    // Simular actualización de perfil
+  }
+}
+
+class MockUserCredential extends Mock implements UserCredential {
+  @override
+  User? get user => MockUser();
+}
+
+class MockUser extends Mock implements User {
+  @override
+  String get email => 'test@example.com';
+  
+  @override
+  String get uid => 'test-uid';
 }
 
 class MockFirestoreService extends Mock implements FirestoreService {

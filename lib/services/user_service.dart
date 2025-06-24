@@ -3,12 +3,15 @@ import '../models/user_profile.dart';
 import '../utils/error_handler.dart';
 
 class UserService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
+
+  UserService([FirebaseFirestore? firestore]) 
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   /// Crear un nuevo usuario
   Future<String> createUser(UserProfile user) async {
     try {
-      final docRef = await _firestore.collection('users').add(user.toMap());
+      final docRef = await _firestore.collection('pm').add(user.toMap());
       return docRef.id;
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
@@ -18,7 +21,7 @@ class UserService {
   /// Obtener usuario por ID
   Future<UserProfile?> getUser(String id) async {
     try {
-      final doc = await _firestore.collection('users').doc(id).get();
+      final doc = await _firestore.collection('pm').doc(id).get();
       if (doc.exists) {
         return UserProfile.fromMap(doc.data()!, doc.id);
       }
@@ -32,7 +35,7 @@ class UserService {
   Future<UserProfile?> getUserByEmail(String email) async {
     try {
       final querySnapshot = await _firestore
-          .collection('users')
+          .collection('pm')
           .where('email', isEqualTo: email)
           .limit(1)
           .get();
@@ -52,7 +55,7 @@ class UserService {
   /// Actualizar usuario
   Future<void> updateUser(String id, UserProfile user) async {
     try {
-      await _firestore.collection('users').doc(id).update(user.toMap());
+      await _firestore.collection('pm').doc(id).update(user.toMap());
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
     }
@@ -61,18 +64,17 @@ class UserService {
   /// Eliminar usuario
   Future<void> deleteUser(String id) async {
     try {
-      await _firestore.collection('users').doc(id).delete();
+      await _firestore.collection('pm').doc(id).delete();
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
     }
   }
 
-  /// Obtener usuarios de una organización
-  Future<List<UserProfile>> getUsersByOrganization(String organizationId) async {
+  /// Obtener todos los usuarios
+  Future<List<UserProfile>> getAllUsers() async {
     try {
       final querySnapshot = await _firestore
-          .collection('users')
-          .where('organizationId', isEqualTo: organizationId)
+          .collection('pm')
           .get();
       
       return querySnapshot.docs
@@ -83,31 +85,10 @@ class UserService {
     }
   }
 
-  /// Invitar usuario a una organización
-  Future<void> inviteUser(String email, String organizationId, UserRole role, String invitedBy) async {
-    try {
-      final user = UserProfile(
-        id: '', // Se asignará al crear
-        email: email,
-        firstName: 'Usuario',
-        lastName: 'Invitado',
-        organizationId: organizationId,
-        role: role,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      await createUser(user);
-      // Aquí podrías enviar un email de invitación
-    } catch (e, stackTrace) {
-      throw AppError.fromException(e, stackTrace);
-    }
-  }
-
   /// Activar usuario
   Future<void> activateUser(String userId) async {
     try {
-      await _firestore.collection('users').doc(userId).update({
+      await _firestore.collection('pm').doc(userId).update({
         'isActive': true,
         'updatedAt': DateTime.now().toIso8601String(),
       });
@@ -119,7 +100,7 @@ class UserService {
   /// Suspender usuario
   Future<void> suspendUser(String userId) async {
     try {
-      await _firestore.collection('users').doc(userId).update({
+      await _firestore.collection('pm').doc(userId).update({
         'isActive': false,
         'updatedAt': DateTime.now().toIso8601String(),
       });
@@ -131,7 +112,7 @@ class UserService {
   /// Actualizar último login
   Future<void> updateLastLogin(String userId) async {
     try {
-      await _firestore.collection('users').doc(userId).update({
+      await _firestore.collection('pm').doc(userId).update({
         'updatedAt': DateTime.now().toIso8601String(),
       });
     } catch (e, stackTrace) {
@@ -154,10 +135,10 @@ class UserService {
     }
   }
 
-  /// Obtener estadísticas de usuarios por organización
-  Future<Map<String, dynamic>> getUserStats(String organizationId) async {
+  /// Obtener estadísticas de usuarios
+  Future<Map<String, dynamic>> getUserStats() async {
     try {
-      final users = await getUsersByOrganization(organizationId);
+      final users = await getAllUsers();
       
       return {
         'total': users.length,

@@ -3,14 +3,16 @@ import '../utils/error_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProductService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
 
-  /// Obtener productos de una organización específica
-  Future<List<Product>> getProducts(String organizationId) async {
+  ProductService([FirebaseFirestore? firestore]) 
+      : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  /// Obtener todos los productos
+  Future<List<Product>> getProducts() async {
     try {
       final querySnapshot = await _firestore
           .collection('products')
-          .where('organizationId', isEqualTo: organizationId)
           .get();
       
       return querySnapshot.docs
@@ -21,16 +23,12 @@ class ProductService {
     }
   }
 
-  /// Obtener producto por ID (verificando organización)
-  Future<Product?> getProduct(String id, String organizationId) async {
+  /// Obtener producto por ID
+  Future<Product?> getProduct(String id) async {
     try {
       final doc = await _firestore.collection('products').doc(id).get();
       if (doc.exists) {
-        final product = Product.fromMap(doc.data()!, doc.id);
-        // Verificar que el producto pertenece a la organización
-        if (product.organizationId == organizationId) {
-          return product;
-        }
+        return Product.fromMap(doc.data()!, doc.id);
       }
       return null;
     } catch (e, stackTrace) {
@@ -49,54 +47,46 @@ class ProductService {
   }
 
   /// Actualizar producto
-  Future<void> updateProduct(Product product) async {
+  Future<void> updateProduct(String id, Product product) async {
     try {
-      await _firestore.collection('products').doc(product.id).update(product.toMap());
+      await _firestore.collection('products').doc(id).update(product.toMap());
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
     }
   }
 
   /// Eliminar producto
-  Future<void> deleteProduct(String id, String organizationId) async {
+  Future<void> deleteProduct(String id) async {
     try {
-      // Verificar que el producto pertenece a la organización antes de eliminar
-      final product = await getProduct(id, organizationId);
+      final product = await getProduct(id);
       if (product != null) {
         await _firestore.collection('products').doc(id).delete();
-      } else {
-        throw AppError.validation('No tienes permisos para eliminar este producto');
       }
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
     }
   }
 
-  /// Actualizar stock
-  Future<void> updateStock(String id, int newStock, String organizationId) async {
+  /// Actualizar stock de un producto
+  Future<void> updateStock(String id, int newStock) async {
     try {
-      final product = await getProduct(id, organizationId);
+      final product = await getProduct(id);
       if (product != null) {
-        final updated = product.copyWith(
-          stock: newStock,
-          updatedAt: DateTime.now(),
-        );
-        await updateProduct(updated);
-      } else {
-        throw AppError.validation('No tienes permisos para actualizar este producto');
+        final updatedProduct = product.copyWith(stock: newStock);
+        await updateProduct(id, updatedProduct);
       }
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
     }
   }
 
-  /// Buscar productos por nombre
-  Future<List<Product>> searchProducts(String query, String organizationId) async {
+  /// Buscar productos por nombre o descripción
+  Future<List<Product>> searchProducts(String query) async {
     try {
-      final products = await getProducts(organizationId);
+      final products = await getProducts();
       return products.where((product) =>
         product.name.toLowerCase().contains(query.toLowerCase()) ||
-        product.description.toLowerCase().contains(query.toLowerCase())
+        (product.description?.toLowerCase().contains(query.toLowerCase()) ?? false)
       ).toList();
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
@@ -104,11 +94,10 @@ class ProductService {
   }
 
   /// Obtener productos por categoría
-  Future<List<Product>> getProductsByCategory(String categoryId, String organizationId) async {
+  Future<List<Product>> getProductsByCategory(String categoryId) async {
     try {
       final querySnapshot = await _firestore
           .collection('products')
-          .where('organizationId', isEqualTo: organizationId)
           .where('categoryId', isEqualTo: categoryId)
           .get();
       
@@ -121,9 +110,9 @@ class ProductService {
   }
 
   /// Obtener productos con stock bajo
-  Future<List<Product>> getLowStockProducts(String organizationId) async {
+  Future<List<Product>> getLowStockProducts() async {
     try {
-      final products = await getProducts(organizationId);
+      final products = await getProducts();
       return products.where((product) => product.stock <= product.minStock).toList();
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
@@ -131,35 +120,21 @@ class ProductService {
   }
 
   /// Obtener estadísticas de productos
-  Future<Map<String, dynamic>> getProductStats(String organizationId) async {
+  Future<Map<String, dynamic>> getProductStats() async {
     try {
-      final products = await getProducts(organizationId);
+      final products = await getProducts();
+      final totalProducts = products.length;
+      final totalValue = products.fold<double>(0, (sum, product) => sum + (product.price * product.stock));
+      final totalPrice = products.fold<double>(0, (sum, product) => sum + product.price);
+      final lowStockProducts = products.where((product) => product.stock <= product.minStock).length;
+      final outOfStockProducts = products.where((product) => product.stock == 0).length;
       
-      double totalValue = 0;
-      int totalItems = 0;
-      int lowStockCount = 0;
-      int outOfStockCount = 0;
-
-      for (final product in products) {
-        totalValue += product.price * product.stock;
-        totalItems += product.stock;
-        
-        if (product.stock <= product.minStock) {
-          lowStockCount++;
-        }
-        
-        if (product.stock == 0) {
-          outOfStockCount++;
-        }
-      }
-
       return {
-        'totalProducts': products.length,
+        'totalProducts': totalProducts,
         'totalValue': totalValue,
-        'totalItems': totalItems,
-        'lowStockCount': lowStockCount,
-        'outOfStockCount': outOfStockCount,
-        'averagePrice': products.isNotEmpty ? totalValue / products.length : 0,
+        'lowStockProducts': lowStockProducts,
+        'outOfStockProducts': outOfStockProducts,
+        'averagePrice': totalProducts > 0 ? totalPrice / totalProducts : 0,
       };
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);

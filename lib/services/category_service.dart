@@ -3,14 +3,16 @@ import '../utils/error_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CategoryService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
 
-  /// Obtener categorías de una organización específica
-  Future<List<Category>> getCategories(String organizationId) async {
+  CategoryService([FirebaseFirestore? firestore]) 
+      : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  /// Obtener todas las categorías
+  Future<List<Category>> getCategories() async {
     try {
       final querySnapshot = await _firestore
           .collection('categories')
-          .where('organizationId', isEqualTo: organizationId)
           .get();
       
       return querySnapshot.docs
@@ -21,16 +23,12 @@ class CategoryService {
     }
   }
 
-  /// Obtener categoría por ID (verificando organización)
-  Future<Category?> getCategoryById(String id, String organizationId) async {
+  /// Obtener categoría por ID
+  Future<Category?> getCategoryById(String id) async {
     try {
       final doc = await _firestore.collection('categories').doc(id).get();
       if (doc.exists) {
-        final category = Category.fromMap(doc.data()!, doc.id);
-        // Verificar que la categoría pertenece a la organización
-        if (category.organizationId == organizationId) {
-          return category;
-        }
+        return Category.fromMap(doc.data()!, doc.id);
       }
       return null;
     } catch (e, stackTrace) {
@@ -58,38 +56,31 @@ class CategoryService {
   }
 
   /// Eliminar categoría
-  Future<void> deleteCategory(String id, String organizationId) async {
+  Future<void> deleteCategory(String id) async {
     try {
-      // Verificar que la categoría pertenece a la organización antes de eliminar
-      final category = await getCategoryById(id, organizationId);
-      if (category != null) {
-        // Verificar que no hay productos usando esta categoría
-        final productsSnapshot = await _firestore
-            .collection('products')
-            .where('organizationId', isEqualTo: organizationId)
-            .where('categoryId', isEqualTo: id)
-            .get();
-        
-        if (productsSnapshot.docs.isNotEmpty) {
-          throw AppError.validation('No se puede eliminar la categoría porque tiene productos asociados');
-        }
-        
-        await _firestore.collection('categories').doc(id).delete();
-      } else {
-        throw AppError.validation('No tienes permisos para eliminar esta categoría');
+      // Verificar que no hay productos usando esta categoría
+      final productsSnapshot = await _firestore
+          .collection('products')
+          .where('categoryId', isEqualTo: id)
+          .get();
+      
+      if (productsSnapshot.docs.isNotEmpty) {
+        throw AppError.validation('No se puede eliminar la categoría porque tiene productos asociados');
       }
+      
+      await _firestore.collection('categories').doc(id).delete();
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
     }
   }
 
   /// Buscar categorías por nombre
-  Future<List<Category>> searchCategories(String query, String organizationId) async {
+  Future<List<Category>> searchCategories(String query) async {
     try {
-      final categories = await getCategories(organizationId);
+      final categories = await getCategories();
       return categories.where((category) =>
         category.name.toLowerCase().contains(query.toLowerCase()) ||
-        category.description.toLowerCase().contains(query.toLowerCase())
+        (category.description?.toLowerCase().contains(query.toLowerCase()) ?? false)
       ).toList();
     } catch (e, stackTrace) {
       throw AppError.fromException(e, stackTrace);
@@ -97,12 +88,11 @@ class CategoryService {
   }
 
   /// Obtener estadísticas de categorías
-  Future<Map<String, dynamic>> getCategoryStats(String organizationId) async {
+  Future<Map<String, dynamic>> getCategoryStats() async {
     try {
-      final categories = await getCategories(organizationId);
+      final categories = await getCategories();
       final productsSnapshot = await _firestore
           .collection('products')
-          .where('organizationId', isEqualTo: organizationId)
           .get();
       
       final products = productsSnapshot.docs;

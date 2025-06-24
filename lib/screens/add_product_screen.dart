@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../models/product.dart';
 import '../viewmodels/product_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
-import '../viewmodels/organization_viewmodel.dart';
-import '../utils/error_handler.dart';
-import '../widgets/custom_text_field.dart';
-import '../widgets/custom_button.dart';
-import '../widgets/loading_overlay.dart';
 import '../widgets/mobile_navigation.dart';
+import '../theme/responsive.dart';
 import 'home_screen.dart';
+import 'barcode_scanner_screen.dart';
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
@@ -27,6 +23,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _stockController = TextEditingController();
   final _minStockController = TextEditingController();
   final _maxStockController = TextEditingController();
+  final _barcodeController = TextEditingController();
   String? _selectedCategory;
   List<String> _categories = [];
 
@@ -44,21 +41,61 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _stockController.dispose();
     _minStockController.dispose();
     _maxStockController.dispose();
+    _barcodeController.dispose();
     super.dispose();
   }
 
   Future<void> _loadCategories() async {
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId != null) {
-      await context.read<CategoryViewModel>().loadCategories(organizationId);
-      setState(() {
-        _categories = context.read<CategoryViewModel>().categories.map((e) => e.name).toList();
-        if (_categories.isNotEmpty) {
-          _selectedCategory = _categories.first;
-        }
-      });
+    await context.read<CategoryViewModel>().loadCategories();
+    setState(() {
+      _categories = context.read<CategoryViewModel>().categories.map((e) => e.name).toList();
+      if (_categories.isNotEmpty) {
+        _selectedCategory = _categories.first;
+      }
+    });
+  }
+
+  Future<void> _scanBarcode() async {
+    try {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const BarcodeScannerScreen(),
+        ),
+      );
+
+      if (result != null && result is Product) {
+        // Producto encontrado o creado desde el escáner
+        setState(() {
+          _nameController.text = result.name;
+          _descriptionController.text = result.description;
+          _priceController.text = result.price.toString();
+          _stockController.text = result.stock.toString();
+          _minStockController.text = result.minStock.toString();
+          _maxStockController.text = result.maxStock.toString();
+          _barcodeController.text = result.barcode ?? '';
+          
+          // Buscar y seleccionar la categoría del producto
+          final category = context.read<CategoryViewModel>().categories
+              .firstWhere((c) => c.id == result.categoryId, 
+                         orElse: () => context.read<CategoryViewModel>().categories.first);
+          _selectedCategory = category.name;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Producto "${result.name}" cargado desde escáner'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al escanear: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -66,15 +103,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
     if (!_formKey.currentState!.validate()) return;
     
     if (_selectedCategory == null) {
-      context.showError('Por favor seleccione una categoría');
-      return;
-    }
-
-    final organizationViewModel = context.read<OrganizationViewModel>();
-    final organizationId = organizationViewModel.currentOrganization?.id;
-    
-    if (organizationId == null) {
-      context.showError('No se pudo obtener la información de la organización');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor seleccione una categoría'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
@@ -93,9 +127,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
         minStock: int.parse(_minStockController.text),
         maxStock: int.parse(_maxStockController.text),
         categoryId: category.id,
-        organizationId: organizationId,
         createdAt: now,
         updatedAt: now,
+        barcode: _barcodeController.text.trim().isEmpty ? null : _barcodeController.text.trim(),
       );
 
       final success = await context.read<ProductViewModel>().addProduct(product);
@@ -110,15 +144,20 @@ class _AddProductScreenState extends State<AddProductScreen> {
       }
     } catch (e) {
       if (mounted) {
-        context.showError(e);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 600;
-    final isTablet = MediaQuery.of(context).size.width >= 600 && MediaQuery.of(context).size.width < 1200;
+    final isMobile = Responsive.isMobile(context);
+    final isTablet = Responsive.isTablet(context);
 
     if (isMobile) {
       return Scaffold(
@@ -199,6 +238,26 @@ class _AddProductScreenState extends State<AddProductScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Botón de escaneo solo en móvil
+                if (Responsive.isMobile(context))
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: ElevatedButton.icon(
+                      onPressed: _scanBarcode,
+                      icon: const Icon(Icons.qr_code_scanner),
+                      label: const Text('Escanear Código de Barras'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                
                 TextFormField(
                   controller: _nameController,
                   decoration: const InputDecoration(
@@ -324,11 +383,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _selectedCategory,
                   decoration: const InputDecoration(
                     labelText: 'Categoría *',
                     border: OutlineInputBorder(),
                   ),
+                  value: _selectedCategory,
                   items: _categories.map((String category) {
                     return DropdownMenuItem<String>(
                       value: category,
@@ -341,11 +400,20 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     });
                   },
                   validator: (value) {
-                    if (value == null) {
-                      return 'Selecciona una categoría';
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor seleccione una categoría';
                     }
                     return null;
                   },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _barcodeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Código de Barras (opcional)',
+                    border: OutlineInputBorder(),
+                    hintText: 'Ingresa o escanea el código de barras',
+                  ),
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
@@ -353,16 +421,25 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   child: ElevatedButton(
                     onPressed: productViewModel.isLoading ? null : _saveProduct,
                     style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     child: productViewModel.isLoading
-                        ? const CircularProgressIndicator()
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
                         : const Text(
                             'Guardar Producto',
-                            style: TextStyle(fontSize: 16),
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                   ),
                 ),
